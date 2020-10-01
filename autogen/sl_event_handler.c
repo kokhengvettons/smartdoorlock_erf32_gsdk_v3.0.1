@@ -12,6 +12,7 @@
 #include "sl_rail_util_pti.h"
 #include "sl_sleeptimer.h"
 #include "sl_bluetooth.h"
+#include "sl_i2cspm_instances.h"
 #include "sl_iostream_init_instances.h"
 #include "sl_iostream_init_usart_instances.h"
 #include "sl_mbedtls.h"
@@ -41,6 +42,7 @@ void sl_platform_init(void)
 
 void sl_driver_init(void)
 {
+  sl_i2cspm_init_instances();
 }
 
 void sl_service_init(void)

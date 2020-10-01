@@ -23,6 +23,8 @@ component:
 - instance: [vcom]
   id: iostream_usart
 - {id: mpu}
+- instance: [sensor]
+  id: i2cspm
 - {id: component_catalog}
 - {id: EFR32MG22C224F512IM40}
 - {id: ota_dfu}
