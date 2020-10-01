@@ -17,21 +17,23 @@ source:
 project_name: smartdoorlock_erf32_gsdk_v3_0_1
 quality: production
 component:
+- instance: [btn0]
+  id: simple_button
+- {id: brd4182a_b03}
+- {id: simple_timer}
+- {id: mpu}
+- {id: rail_util_pti}
 - {id: emlib_iadc}
 - {id: app_log}
-- {id: brd4182a_b03}
 - {id: brd4001a}
 - instance: [vcom]
   id: iostream_usart
-- {id: simple_timer}
-- {id: mpu}
 - instance: [sensor]
   id: i2cspm
 - {id: component_catalog}
 - {id: EFR32MG22C224F512IM40}
 - {id: ota_dfu}
 - {id: bootloader_interface}
-- {id: rail_util_pti}
 - {id: app_assert}
 - {id: bluetooth}
 other_file:

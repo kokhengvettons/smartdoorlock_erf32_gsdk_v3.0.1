@@ -18,6 +18,7 @@
 #include "sl_mbedtls.h"
 #include "sl_mpu.h"
 #include "nvm3_default.h"
+#include "sl_simple_button_instances.h"
 #include "sl_simple_timer.h"
 #include "sl_power_manager.h"
 
@@ -44,6 +45,7 @@ void sl_platform_init(void)
 void sl_driver_init(void)
 {
   sl_i2cspm_init_instances();
+  sl_simple_button_init_instances();
 }
 
 void sl_service_init(void)
