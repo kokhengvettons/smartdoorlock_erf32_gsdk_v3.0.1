@@ -17,6 +17,7 @@ source:
 project_name: smartdoorlock_erf32_gsdk_v3_0_1
 quality: production
 component:
+- {id: pwm_core}
 - instance: [btn0]
   id: simple_button
 - {id: brd4182a_b03}
