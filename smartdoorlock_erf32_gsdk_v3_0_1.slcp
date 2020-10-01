@@ -22,6 +22,7 @@ component:
 - {id: brd4001a}
 - instance: [vcom]
   id: iostream_usart
+- {id: simple_timer}
 - {id: mpu}
 - instance: [sensor]
   id: i2cspm
