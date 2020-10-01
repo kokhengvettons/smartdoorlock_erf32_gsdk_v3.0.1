@@ -16,6 +16,7 @@
  ******************************************************************************/
 #include "em_common.h"
 #include "sl_app_assert.h"
+#include "sl_app_log.h"
 #include "sl_bluetooth.h"
 #include "gatt_db.h"
 #include "app.h"
@@ -64,6 +65,12 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
     // This event indicates the device has started and the radio is ready.
     // Do not call any stack command before receiving this boot event!
     case sl_bt_evt_system_boot_id:
+      // Print boot message.
+      sl_app_log("Bluetooth stack booted: v%d.%d.%d-b%d\n",
+                 evt->data.evt_system_boot.major,
+                 evt->data.evt_system_boot.minor,
+                 evt->data.evt_system_boot.patch,
+                 evt->data.evt_system_boot.build);
 
       // Extract unique ID from BT Address.
       sc = sl_bt_system_get_identity_address(&address, &address_type);
@@ -105,6 +112,16 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
       sl_app_assert(sc == SL_STATUS_OK,
                     "[E: 0x%04x] Failed to set advertising timing\n",
                     (int)sc);
+
+      sl_app_log("Bluetooth %s address: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                 address_type ? "static random" : "public device",
+                 address.addr[5],
+                 address.addr[4],
+                 address.addr[3],
+                 address.addr[2],
+                 address.addr[1],
+                 address.addr[0]);
+
       // Start general advertising and enable connections.
       sc = sl_bt_advertiser_start(
         advertising_set_handle,
@@ -113,16 +130,20 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
       sl_app_assert(sc == SL_STATUS_OK,
                     "[E: 0x%04x] Failed to start advertising\n",
                     (int)sc);
+      sl_app_log("Started advertising\n");
       break;
 
     // -------------------------------
     // This event indicates that a new connection was opened.
     case sl_bt_evt_connection_opened_id:
+      sl_app_log("Connection opened\n");
       break;
 
     // -------------------------------
     // This event indicates that a connection was closed.
     case sl_bt_evt_connection_closed_id:
+      sl_app_log("Connection closed\n");
+
       // Restart advertising after client has disconnected.
       sc = sl_bt_advertiser_start(
         advertising_set_handle,
@@ -131,6 +152,7 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
       sl_app_assert(sc == SL_STATUS_OK,
                     "[E: 0x%04x] Failed to start advertising\n",
                     (int)sc);
+      sl_app_log("Started advertising\n");
       break;
 
     ///////////////////////////////////////////////////////////////////////////
