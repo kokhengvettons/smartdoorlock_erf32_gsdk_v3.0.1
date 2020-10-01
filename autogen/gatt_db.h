@@ -13,9 +13,24 @@ extern const struct bg_gattdb_def bg_gattdb_data;
 #define gattdb_database_hash                  6
 #define gattdb_client_support_features        8
 #define gattdb_device_name                    11
-#define gattdb_manufacturer_name_string       16
-#define gattdb_system_id                      18
-#define gattdb_ota_control                    21
+#define gattdb_appearance                     13
+#define gattdb_peripheral_preferred_connection_parameters 15
+#define gattdb_hardware_revision_string       18
+#define gattdb_firmware_revision_string       20
+#define gattdb_manufacturer_name_string       22
+#define gattdb_serial_number_string           24
+#define gattdb_system_id                      26
+#define gattdb_door_lock                      29
+#define gattdb_door_status                    32
+#define gattdb_door_password                  35
+#define gattdb_door_sensor_alarm_time         38
+#define gattdb_door_sensor_alarm_status       40
+#define gattdb_door_auto_lock_time            43
+#define gattdb_enable_auto_door_lock          45
+#define gattdb_special_command                47
+#define gattdb_battery_level_cell             50
+#define gattdb_battery_level_motor            53
+#define gattdb_ota_control                    57
 
 
 #endif // __GATT_DB_H
