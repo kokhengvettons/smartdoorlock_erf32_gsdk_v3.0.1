@@ -50,3 +50,8 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# simplicity studio projects
+*.bak
+/.trash
+/GNU ARM v7.2.1 - Debug
