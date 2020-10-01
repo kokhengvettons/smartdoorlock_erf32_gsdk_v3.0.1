@@ -14,25 +14,99 @@
  * sections of the MSLA applicable to Source Code.
  *
  ******************************************************************************/
-#include "em_common.h"
+#include "sl_simple_button_instances.h"
+#include "sl_i2cspm_instances.h"
+#include "sl_simple_timer.h"
 #include "sl_app_assert.h"
-#include "sl_app_log.h"
 #include "sl_bluetooth.h"
+#include "sl_bt_types.h"
+#include "sl_app_log.h"
+#include "sl_status.h"
+#include "em_common.h"
 #include "gatt_db.h"
 #include "app.h"
 
+#include "cpt212b.h"
+#include "battery.h"
+#include "string.h"
+
+// Connection handle.
+static uint8_t app_connection = 0;
+
 // The advertising set handle allocated from Bluetooth stack.
 static uint8_t advertising_set_handle = 0xff;
+
+// simple timer to reboot the system
+static sl_simple_timer_t simple_timer;
+
+// simple timer to trigger auto lock the door
+static sl_simple_timer_t auto_lock_timer;
+
+/* Global static variable */
+const uint8_t doorLock[4]                 = {"LOCK"};
+const uint8_t doorUnlock[6]               = {"UNLOCK"};
+const uint8_t door_open[4]                = {"OPEN"};
+const uint8_t door_closed[6]              = {"CLOSED"};
+const uint8_t fac_rst_device_name[15]     = {"VettonsDoorLock"};
+const uint8_t fac_rst_manufact_name[13]   = {"SmartDoorLock"};
+const uint8_t fac_rst_auto_lock_time[2]   = {0x3C, 0x00};
+const uint8_t fac_rst_door_alarm_time[2]  = {0x1E, 0x00};
+const uint8_t fac_rst_sn_string[36]       = {"00000000-0000-0000-0000-000000000000"};
+const uint8_t fac_rst_door_auto_lock      = DISABLE_AUTO_LOCK; 
+
+
+static uint8_t door_open_status           = DOOR_OPEN;
+static uint8_t door_lock_status           = DOOR_UNLOCK;
+//static uint8_t door_alarm_status          = DOOR_ALARM_OFF;
+static uint8_t door_auto_lock             = DISABLE_AUTO_LOCK;
+static uint32_t door_auto_lock_time_in_s  = MIN_DOOR_AUTO_LOCK_SEC;
+static uint32_t door_alarm_time_in_s      = MIN_DOOR_SENSOR_ALARM_SEC;
+
+/**************************************************************************//**
+ * Static function declaration
+ *****************************************************************************/
+// simple timer callback.
+static void simple_timer_cb(sl_simple_timer_t *timer, void *data);
+
+// auto lock timer callback
+static void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data);
+
+// Battery level indication change callback
+static void battery_level_indication_change_cb(
+    uint8_t connection, gatt_client_config_flag_t client_config);
+
+// Event for write attribute value and then store it into flash
+static void evt_write_attribute_value(
+    struct sl_bt_evt_gatt_server_attribute_value_s* attr_val);
+
+// Event for read request - door lock
+static void evt_read_request_door_lock(
+    struct sl_bt_evt_gatt_server_user_read_request_s* read_req);
+
+// Event for read request - door status
+static void evt_read_request_door_status(
+    struct sl_bt_evt_gatt_server_user_read_request_s* read_req);
+
+// Event for write request - door lock
+void evt_write_request_door_lock(
+  struct sl_bt_evt_gatt_server_user_write_request_s* write_req);
+
+// Event for handler special command
+static void evt_special_cmd_handler(
+    struct sl_bt_evt_gatt_server_attribute_value_s* attr_val);
+
 
 /**************************************************************************//**
  * Application Init.
  *****************************************************************************/
 SL_WEAK void app_init(void)
 {
-  /////////////////////////////////////////////////////////////////////////////
-  // Put your additional application init code here!                         //
-  // This is called once during start-up.                                    //
-  /////////////////////////////////////////////////////////////////////////////
+  sl_status_t sc;
+  sl_app_log("Vettons City Smart Door Lock initialized\n");
+
+  sc = cpt212b_init(sl_i2cspm_sensor, false);
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to init cpt212b keypad.\n", (int)sc);
 }
 
 /**************************************************************************//**
@@ -153,15 +227,615 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
                     "[E: 0x%04x] Failed to start advertising\n",
                     (int)sc);
       sl_app_log("Started advertising\n");
+
+      battery_terminate_IADC_Measure(ALL_BAT);
       break;
 
     ///////////////////////////////////////////////////////////////////////////
     // Add additional event handlers here as your application requires!      //
     ///////////////////////////////////////////////////////////////////////////
-
+    case sl_bt_evt_gatt_server_characteristic_status_id:
+      switch(evt->data.evt_gatt_server_characteristic_status.characteristic)
+      {
+        case gattdb_battery_level_cell:
+        case gattdb_battery_level_motor:
+          battery_level_indication_change_cb(
+              evt->data.evt_gatt_server_characteristic_status.connection,
+              evt->data.evt_gatt_server_characteristic_status.client_config_flags);
+          break;
+      }
+      break;
+    
+    case sl_bt_evt_gatt_server_user_write_request_id:
+      switch(evt->data.evt_gatt_server_user_write_request.characteristic)
+      {
+        case gattdb_door_lock:
+          evt_write_request_door_lock(&evt->data.evt_gatt_server_user_write_request);
+          break;
+      }
+      break;
+          
+    case sl_bt_evt_gatt_server_user_read_request_id:
+      switch(evt->data.evt_gatt_server_user_read_request.characteristic)
+      {
+        case gattdb_door_lock:
+          evt_read_request_door_lock(&evt->data.evt_gatt_server_user_read_request);
+          break;
+        case gattdb_door_status:
+          evt_read_request_door_status(&evt->data.evt_gatt_server_user_read_request);
+          break;
+      }
+      break;
+    
+    case sl_bt_evt_gatt_server_attribute_value_id:
+      switch(evt->data.evt_gatt_server_attribute_value.attribute)
+      {
+        case gattdb_device_name:
+        case gattdb_manufacturer_name_string:
+        case gattdb_serial_number_string:
+        case gattdb_door_auto_lock_time:
+        case gattdb_enable_auto_door_lock:
+        case gattdb_door_sensor_alarm_time:
+          evt_write_attribute_value(&evt->data.evt_gatt_server_attribute_value);
+          break;
+        case gattdb_special_command:
+          evt_special_cmd_handler(&evt->data.evt_gatt_server_attribute_value);
+          break;
+      }
+      break;
+    
+    case sl_bt_evt_system_external_signal_id:
+      break;
+      
     // -------------------------------
     // Default event handler.
     default:
       break;
   }
 }
+
+/**************************************************************************//**
+ * Callback function of connection close event.
+ *
+ * @param[in] reason Unused parameter required by the health_thermometer component
+ * @param[in] connection Unused parameter required by the health_thermometer component
+ *****************************************************************************/
+void sl_bt_connection_closed_cb(uint16_t reason, uint8_t connection)
+{
+  (void)reason;
+  (void)connection;
+}
+
+/**************************************************************************//**
+ * Battery level measurement
+ * Indication changed callback
+ *
+ * Called when indication of battery measurement is enabled/disabled by
+ * the client.
+ *****************************************************************************/
+void battery_level_indication_change_cb(
+    uint8_t connection, gatt_client_config_flag_t client_config)
+{
+  sl_status_t sc;
+  app_connection = connection;
+
+  // Indication or notification enabled.
+  if (gatt_indication == client_config)
+  {
+    sc = battery_measure_init(false);
+    sl_app_assert(sc == SL_STATUS_OK,
+                  "[E: 0x%04x] Failed to init battery measurement.\n", (int)sc);
+  }
+  else if (gatt_disable == client_config)
+  {
+    battery_terminate_IADC_Measure(ALL_BAT);
+  }
+}
+
+/**************************************************************************//**
+ * Timer callback
+ * Called for system reboot when time up.
+ *****************************************************************************/
+void simple_timer_cb(sl_simple_timer_t *timer, void *data)
+{
+  (void)data;
+  (void)timer;
+
+  sl_bt_system_reset(0);
+}
+
+/**************************************************************************//**
+ * Timer callback
+ * Called for auto lock the door
+ *****************************************************************************/
+void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data)
+{
+  (void)data;
+  (void)timer;
+
+  if (door_lock_status == DOOR_UNLOCK)
+  {
+    if ((door_open_status = GPIO_PinInGet(gpioPortC, 2)) == DOOR_CLOSED)
+    {
+      // TODO: lock the door
+
+      door_lock_status = DOOR_LOCK;
+
+      uint16_t len = 0;
+      sl_status_t sc = sl_bt_gatt_server_send_characteristic_notification(
+          0xFF, gattdb_door_lock, sizeof(doorLock), doorLock, &len);
+      sl_app_assert(sc == SL_STATUS_OK,
+                  "[E: 0x%04x] Failed to send characteristic notification. \n",
+                  (int)sc);
+    }
+  }
+}
+
+/**************************************************************************//**
+ * Door push button to trigger door unlock/lock
+ * Button state changed callback
+ * @param[in] handle Button event handle
+ *****************************************************************************/
+void sl_button_on_change(const sl_button_t *handle)
+{
+  sl_status_t sc;
+  uint16_t len = 0;
+
+  // Button pressed.
+  if (sl_button_get_state(handle) == SL_SIMPLE_BUTTON_PRESSED) {
+    if (&sl_button_btn0 == handle) {
+      if (door_lock_status == DOOR_UNLOCK)
+      {
+        sl_app_log("<button released> - lock the door.\n");
+
+        //TODO: lock the door
+
+        door_lock_status = DOOR_LOCK;
+        sc = sl_bt_gatt_server_send_characteristic_notification(
+            0xFF, gattdb_door_lock, sizeof(doorLock), doorLock, &len);
+        sl_app_assert(sc == SL_STATUS_OK,
+                    "[E: 0x%04x] Failed to send characteristic notification. \n",
+                    (int)sc);
+      }
+      else
+      {
+        sl_app_log("<button released> - unlock the door.\n");
+
+        // TODO: unlock the door
+        
+        door_lock_status = DOOR_UNLOCK;
+        sc = sl_bt_gatt_server_send_characteristic_notification(
+            0xFF, gattdb_door_lock, sizeof(doorUnlock), doorUnlock, &len);
+        sl_app_assert(sc == SL_STATUS_OK,
+                    "[E: 0x%04x] Failed to send characteristic notification. \n",
+                    (int)sc);
+
+        // kick start the auto door lock timer, and lock the door when time up
+        if (door_auto_lock == ENABLE_AUTO_LOCK)
+          exec_door_auto_lock(door_lock_status, door_auto_lock_time_in_s);
+      }      
+    }
+  }
+}
+
+/**************************************************************************//**
+ * Event for write attribute value and store it into flash
+ *
+ *****************************************************************************/
+void evt_write_attribute_value(
+    struct sl_bt_evt_gatt_server_attribute_value_s* attr_val)
+{
+  sl_status_t sc;
+
+  uint16_t attribute_id = attr_val->attribute;
+
+  sc = sl_bt_nvm_save(PS_KEY_BASE + attribute_id, attr_val->value.len,
+                 attr_val->value.data);
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to write attribute into flash\n", (int)sc);
+
+  if (sc == SL_STATUS_OK)
+  {
+    sc = sl_bt_gatt_server_write_attribute_value(
+        attribute_id, 0, attr_val->value.len, attr_val->value.data);
+
+    sl_app_assert(sc == SL_STATUS_OK,
+                  "[E: 0x%04x] Failed to write attribute value\n", (int)sc);
+  }
+
+  // update global variable
+  if (attribute_id == gattdb_door_auto_lock_time ||
+      attribute_id == gattdb_door_sensor_alarm_time)
+  {
+      // in case user enter in less than 2 bytes value
+      uint16_t time_in_s = 0;
+      if (attr_val->value.len == 2)
+        time_in_s = (attr_val->value.data[1] << 8) + attr_val->value.data[0];
+      else
+        time_in_s = attr_val->value.data[0];
+
+      if (attribute_id == gattdb_door_auto_lock_time)
+      {
+        if (time_in_s <= MIN_DOOR_AUTO_LOCK_SEC ||
+            time_in_s >= MAX_DOOR_AUTO_LOCK_SEC)
+          door_auto_lock_time_in_s = MIN_DOOR_AUTO_LOCK_SEC;
+        else
+          door_auto_lock_time_in_s  = time_in_s;
+      }
+
+      if (attribute_id == gattdb_door_sensor_alarm_time)
+      {
+        if (time_in_s <= MIN_DOOR_SENSOR_ALARM_SEC ||
+            time_in_s >= MAX_DOOR_SENSOR_ALARM_SEC)
+          door_alarm_time_in_s = MIN_DOOR_SENSOR_ALARM_SEC;
+        else
+          door_alarm_time_in_s  = time_in_s;
+      }
+  }
+
+  if (attribute_id == gattdb_enable_auto_door_lock)
+    door_auto_lock = attr_val->value.data[0];
+}
+
+/**************************************************************************//**
+ * Read request event for door lock
+ *
+ *****************************************************************************/
+void evt_read_request_door_lock(
+    struct sl_bt_evt_gatt_server_user_read_request_s* read_req)
+{
+  sl_status_t sc;
+  uint16_t len = 0;
+
+  if (door_lock_status == DOOR_LOCK)
+  {
+    sc = sl_bt_gatt_server_send_user_read_response(
+        read_req->connection,read_req->characteristic, SL_STATUS_OK,
+        sizeof(doorLock), doorLock, &len);
+  }
+  else
+  {
+    sc = sl_bt_gatt_server_send_user_read_response(
+        read_req->connection, read_req->characteristic, SL_STATUS_OK,
+        sizeof(doorUnlock), doorUnlock, &len);
+  }
+
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to send user read request for door lock \n",
+                (int)sc);
+}
+
+/**************************************************************************//**
+ * Read request event for door status
+ *
+ *****************************************************************************/
+static void evt_read_request_door_status(
+    struct sl_bt_evt_gatt_server_user_read_request_s* read_req)
+{
+  sl_status_t sc;
+  uint16_t len = 0;
+  door_open_status = GPIO_PinInGet(gpioPortC, 2);
+
+  if (door_open_status == DOOR_OPEN)
+  {
+    sc = sl_bt_gatt_server_send_user_read_response(
+        read_req->connection,read_req->characteristic, SL_STATUS_OK,
+        sizeof(door_open), door_open, &len);
+  }
+  else
+  {
+    sc = sl_bt_gatt_server_send_user_read_response(
+        read_req->connection,read_req->characteristic, SL_STATUS_OK,
+        sizeof(door_closed), door_closed, &len);
+  }
+
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to send user read request for door status \n",
+                (int)sc);
+}
+
+/**************************************************************************//**
+ * Write request event for door lock
+ *
+ *****************************************************************************/
+void evt_write_request_door_lock(
+  struct sl_bt_evt_gatt_server_user_write_request_s* write_req)
+{
+  sl_status_t sc;
+
+  if (write_req->value.len == sizeof(doorLock))
+  {
+    if (memcmp(write_req->value.data, doorLock, write_req->value.len) == 0)
+    {
+      // TODO: lock the door
+
+      door_lock_status = DOOR_LOCK;
+    }
+  }
+  else if(write_req->value.len == sizeof(doorUnlock))
+  {
+    if (memcmp(write_req->value.data, doorUnlock, write_req->value.len) == 0)
+    {
+      // TODO: lock the door
+
+      door_lock_status = DOOR_UNLOCK;
+
+      // kick start the auto door lock timer, and lock the door when time up
+      if (door_auto_lock == ENABLE_AUTO_LOCK)
+        exec_door_auto_lock(door_lock_status, door_auto_lock_time_in_s);
+    }
+  }
+
+  sc = sl_bt_gatt_server_send_user_write_response(
+      write_req->connection, write_req->characteristic, SL_STATUS_OK);
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to send user write for door lock\n",
+                (int)sc);
+}
+
+/**************************************************************************//**
+ * Retrieve the attribute value from flash and write into attribute
+ *
+ *****************************************************************************/
+void retrieve_attribute_value_from_flash(uint16_t attribute_id)
+{
+  sl_status_t sc;
+
+  uint8_t max_attr_len;
+  size_t  buf_len;
+  uint8_t buf[36];
+  memset(buf, 0, sizeof(buf));
+
+  switch(attribute_id)
+  {
+    case gattdb_device_name:
+    case gattdb_manufacturer_name_string:
+      max_attr_len = 20;
+      break;
+    case gattdb_serial_number_string:
+      max_attr_len = 36;
+      break;
+    case gattdb_door_auto_lock_time:
+    case gattdb_door_sensor_alarm_time:
+      max_attr_len = 2;
+      break;
+    case gattdb_enable_auto_door_lock:
+      max_attr_len = 1;
+      break;
+    default:
+      max_attr_len = 1;
+      break;
+  }
+
+  sc = sl_bt_nvm_load(PS_KEY_BASE + attribute_id, max_attr_len,
+                      &buf_len, &buf[0]);
+  sl_app_assert(sc == SL_STATUS_OK || sc == SL_STATUS_BT_PS_KEY_NOT_FOUND,
+                "[E: 0x%04x] Failed to read attribute from flash\n", (int)sc);
+
+  // if flash content is store nothing then exit
+  if (strlen((const char*)buf) == 0)
+    return;
+
+  uint8_t buffer[buf_len];
+  memcpy(buffer, buf, sizeof(uint8_t)*buf_len);
+
+  if (sc == SL_STATUS_OK)
+  {
+    sc = sl_bt_gatt_server_write_attribute_value(attribute_id,
+                                                 0, sizeof(buffer), buffer);
+    sl_app_assert(sc == SL_STATUS_OK,
+                  "[E: 0x%04x] Failed to write attribute value %d \n",
+                  (int)sc, attribute_id);
+
+    // update global variable
+    if (attribute_id == gattdb_door_auto_lock_time)
+    {
+      // in case user enter in less than 2 bytes value
+      if (buf_len == 2)
+        door_auto_lock_time_in_s = (buf[1] << 8) + buf[0];
+      else
+        door_auto_lock_time_in_s = buf[0];
+    }
+
+    if (attribute_id == gattdb_door_sensor_alarm_time)
+    {
+      // in case user enter in less than 2 bytes value
+      if (buf_len == 2)
+        door_alarm_time_in_s = (buf[1] << 8) + buf[0];
+      else
+        door_alarm_time_in_s = buf[0];
+    }
+
+    if (attribute_id == gattdb_enable_auto_door_lock)
+      door_auto_lock = buf[0];
+  }
+}
+
+/**************************************************************************//**
+ * Initialized the attribute value when system boot
+ *
+ *****************************************************************************/
+void attribute_value_init(void)
+{
+  retrieve_attribute_value_from_flash(gattdb_device_name);
+  retrieve_attribute_value_from_flash(gattdb_manufacturer_name_string);
+  retrieve_attribute_value_from_flash(gattdb_serial_number_string);
+  retrieve_attribute_value_from_flash(gattdb_door_auto_lock_time);
+  retrieve_attribute_value_from_flash(gattdb_door_sensor_alarm_time);
+  retrieve_attribute_value_from_flash(gattdb_enable_auto_door_lock);
+}
+
+/**************************************************************************//**
+ * Event handler for special command
+ *
+ *****************************************************************************/
+static void evt_special_cmd_handler(
+    struct sl_bt_evt_gatt_server_attribute_value_s* attr_val)
+{
+  switch (attr_val->value.data[0])
+  {
+    case 0x01: // factory reset
+      factory_reset();
+      break;
+    case 0x02: // flash keypad configuration profile
+      keypad_hardware_test(true);
+      break;
+    case 0x03: // hardware self test for keypad
+      keypad_hardware_test(false);
+      break;
+    case 0x04: // hardware self test for battery
+      battery_measurement_test();
+      break;
+    case 0x05: // hardware self test for dc motor
+      //hardware_self_test_dc_motor();
+      break;
+    default:
+      special_command_default_handler();
+      break;
+  }
+}
+
+/**************************************************************************//**
+ * Execute factory reset
+ *
+ *****************************************************************************/
+void factory_reset(void)
+{
+  sl_app_log("<special command> - factory reset!!\n");
+  // Perform a factory reset by erasing PS storage.
+  sl_bt_nvm_erase_all();
+
+  // write default device name and alarm trigger time into PS storage.
+  sl_bt_nvm_save(PS_KEY_BASE + gattdb_device_name,
+                 sizeof(fac_rst_device_name), fac_rst_device_name);
+  sl_bt_nvm_save(PS_KEY_BASE + gattdb_manufacturer_name_string,
+                 sizeof(fac_rst_manufact_name), fac_rst_manufact_name);
+  sl_bt_nvm_save(PS_KEY_BASE + gattdb_door_auto_lock_time,
+                 sizeof(fac_rst_auto_lock_time), fac_rst_auto_lock_time);
+  sl_bt_nvm_save(PS_KEY_BASE + gattdb_door_sensor_alarm_time,
+                 sizeof(fac_rst_door_alarm_time), fac_rst_door_alarm_time);
+  sl_bt_nvm_save(PS_KEY_BASE + gattdb_enable_auto_door_lock,
+                 sizeof(fac_rst_door_auto_lock), &fac_rst_door_auto_lock);
+  sl_bt_nvm_save(PS_KEY_BASE + gattdb_serial_number_string,
+                 sizeof(fac_rst_sn_string), fac_rst_sn_string);
+
+  sl_status_t sc;
+  uint16_t len = 0;
+  uint8_t err_code = special_cmd_success;
+
+  sc = sl_bt_gatt_server_send_characteristic_notification(
+      0xFF, gattdb_special_command, 1, &err_code, &len);
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to send characteristic notification. \n",
+                (int)sc);
+
+  // add some delay to reset the device
+  sc = sl_simple_timer_start(&simple_timer,
+                             FACTORY_RESET_INTERVAL_SEC * 1000,
+                             simple_timer_cb, NULL, false);
+  sl_app_assert(sc == SL_STATUS_OK,
+              "[E: 0x%04x] Failed to create simple timer. \n", (int)sc);
+}
+
+/**************************************************************************//**
+ * keypad hardware test
+ * bool bWriteConfProfile - true for write configuration profile
+ *****************************************************************************/
+void keypad_hardware_test(bool bWriteConfProfile)
+{
+  if (bWriteConfProfile == true)
+    sl_app_log("<special command> - write configuration profile.\n");
+  else
+    sl_app_log("<special command> - keypad hardware test.\n");
+
+  sl_status_t sc = cpt212b_init(sl_i2cspm_sensor, bWriteConfProfile);
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to init cpt212b keypad.\n", (int)sc);
+
+  uint8_t err_code = special_cmd_success;
+  if (sc != SL_STATUS_OK)
+  {
+    if (bWriteConfProfile == true)
+      err_code = special_cmd_err_write_profile;
+    else
+      err_code = special_cmd_err_hardware_keypad;
+  }
+
+  uint16_t len = 0;
+  sc = sl_bt_gatt_server_send_characteristic_notification(
+      0xFF, gattdb_special_command, 1, &err_code, &len);
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to send characteristic notification. \n",
+                (int)sc);
+}
+
+/**************************************************************************//**
+ * Battery measurement test
+ *
+ *****************************************************************************/
+void battery_measurement_test(void)
+{
+  sl_app_log("<special command> - battery measurement test.\n");
+
+  sl_status_t sc = battery_measure_init(true);
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to init battery measurement.\n", (int)sc);
+
+}
+
+/**************************************************************************//**
+ * Special command default handler
+ *
+ *****************************************************************************/
+void special_command_default_handler(void)
+{
+  sl_app_log("<special command> - default handler.\n");
+
+  uint16_t len = 0;
+  uint8_t err_code = special_cmd_unsupported_cmd;
+
+  sl_status_t sc = sl_bt_gatt_server_send_characteristic_notification(
+      0xFF, gattdb_special_command, 1, &err_code, &len);
+  sl_app_assert(sc == SL_STATUS_OK,
+              "[E: 0x%04x] Failed to send characteristic notification. \n",
+              (int)sc);
+}
+
+/**************************************************************************//**
+ * Execute auto door lock feature when unlock status
+ *
+ *****************************************************************************/
+void exec_door_auto_lock(door_lock_TypeDef status, uint32_t trigger_time_sec)
+{
+  sl_status_t sc;
+
+  if (status == DOOR_UNLOCK)
+  {
+    sc = sl_simple_timer_start(&auto_lock_timer, trigger_time_sec * 1000,
+                               auto_lock_timer_cb, NULL, false);
+    sl_app_assert(sc == SL_STATUS_OK,
+                  "[E: 0x%04x] Failed to create auto lock timer. \n",
+                  (int)sc);
+  }
+}
+
+#ifdef SL_CATALOG_CLI_PRESENT
+void hello(sl_cli_command_arg_t *arguments)
+{
+  (void) arguments;
+  bd_addr address;
+  uint8_t address_type;
+  sl_status_t sc = sl_bt_system_get_identity_address(&address, &address_type);
+  sl_app_assert(sc == SL_STATUS_OK,
+                "[E: 0x%04x] Failed to get Bluetooth address\n",
+                (int)sc);
+  sl_app_log("Bluetooth %s address: %02X:%02X:%02X:%02X:%02X:%02X\n",
+             address_type ? "static random" : "public device",
+             address.addr[5],
+             address.addr[4],
+             address.addr[3],
+             address.addr[2],
+             address.addr[1],
+             address.addr[0]);
+}
+#endif // SL_CATALOG_CLI_PRESENT
