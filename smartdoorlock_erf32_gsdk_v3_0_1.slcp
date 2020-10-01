@@ -23,7 +23,6 @@ component:
 - {id: simple_timer}
 - {id: mpu}
 - {id: rail_util_pti}
-- {id: brd4166a_support}
 - {id: emlib_iadc}
 - {id: app_log}
 - {id: brd4001a}
