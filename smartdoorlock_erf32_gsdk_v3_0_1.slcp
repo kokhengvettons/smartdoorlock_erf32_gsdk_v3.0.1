@@ -17,6 +17,7 @@ source:
 project_name: smartdoorlock_erf32_gsdk_v3_0_1
 quality: production
 component:
+- {id: app_log}
 - {id: brd4182a_b03}
 - {id: brd4001a}
 - instance: [vcom]
