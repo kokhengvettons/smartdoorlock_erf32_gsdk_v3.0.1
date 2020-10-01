@@ -19,6 +19,8 @@ quality: production
 component:
 - {id: brd4182a_b03}
 - {id: brd4001a}
+- instance: [vcom]
+  id: iostream_usart
 - {id: mpu}
 - {id: component_catalog}
 - {id: EFR32MG22C224F512IM40}
@@ -33,6 +35,5 @@ other_file:
 tag: ['hardware:rf:band:2400']
 category: Bluetooth Examples
 toolchain_settings: []
-config_file: []
 ui_hints: {}
 
