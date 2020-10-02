@@ -44,8 +44,8 @@ static sl_simple_timer_t simple_timer;
 static sl_simple_timer_t auto_lock_timer;
 
 /* Global static variable */
-const uint8_t doorLock[4]                 = {"LOCK"};
-const uint8_t doorUnlock[6]               = {"UNLOCK"};
+const uint8_t door_lock[4]                = {"LOCK"};
+const uint8_t door_unlock[6]              = {"UNLOCK"};
 const uint8_t door_open[4]                = {"OPEN"};
 const uint8_t door_closed[6]              = {"CLOSED"};
 const uint8_t fac_rst_device_name[15]     = {"VettonsDoorLock"};
@@ -464,13 +464,13 @@ void evt_read_request_door_lock(
   {
     sc = sl_bt_gatt_server_send_user_read_response(
         read_req->connection,read_req->characteristic, SL_STATUS_OK,
-        sizeof(doorLock), doorLock, &len);
+        sizeof(door_lock), door_lock, &len);
   }
   else
   {
     sc = sl_bt_gatt_server_send_user_read_response(
         read_req->connection, read_req->characteristic, SL_STATUS_OK,
-        sizeof(doorUnlock), doorUnlock, &len);
+        sizeof(door_unlock), door_unlock, &len);
   }
 
   sl_app_assert(sc == SL_STATUS_OK,
@@ -516,17 +516,17 @@ void evt_write_request_door_lock(
 {
   sl_status_t sc;
 
-  if (write_req->value.len == sizeof(doorLock))
+  if (write_req->value.len == sizeof(door_lock))
   {
-    if (memcmp(write_req->value.data, doorLock, write_req->value.len) == 0)
+    if (memcmp(write_req->value.data, door_lock, write_req->value.len) == 0)
     {
       door_lock_run(true);
       door_lock_status = DOOR_LOCK;
     }
   }
-  else if(write_req->value.len == sizeof(doorUnlock))
+  else if(write_req->value.len == sizeof(door_unlock))
   {
-    if (memcmp(write_req->value.data, doorUnlock, write_req->value.len) == 0)
+    if (memcmp(write_req->value.data, door_unlock, write_req->value.len) == 0)
     {
       door_lock_run(false);
       door_lock_status = DOOR_UNLOCK;
@@ -559,7 +559,7 @@ void door_lock_execute(bool bEnableLock)
     {
       door_lock_status = DOOR_LOCK;
       sc = sl_bt_gatt_server_send_characteristic_notification(
-        0xFF, gattdb_door_lock, sizeof(doorLock), doorLock, &len);
+        0xFF, gattdb_door_lock, sizeof(door_lock), door_lock, &len);
     }
   }
   else
@@ -568,7 +568,7 @@ void door_lock_execute(bool bEnableLock)
     {
       door_lock_status = DOOR_UNLOCK;
       sc = sl_bt_gatt_server_send_characteristic_notification(
-          0xFF, gattdb_door_lock, sizeof(doorUnlock), doorUnlock, &len);      
+          0xFF, gattdb_door_lock, sizeof(door_unlock), door_unlock, &len);      
     }
     sl_app_assert(
         sc == SL_STATUS_OK,
@@ -576,7 +576,6 @@ void door_lock_execute(bool bEnableLock)
         (int)sc);
   }
 }
-
 
 /**************************************************************************//**
  * Retrieve the attribute value from flash and write into attribute

@@ -1,6 +1,6 @@
 /***************************************************************************//**
  * @file
- * @brief Control DC motor via pwm module
+ * @brief Driver for the control DC motor
  ******************************************************************************/
 
 #include "sl_simple_timer.h"

@@ -1,6 +1,6 @@
 /***************************************************************************//**
  * @file
- * @brief Driver for the Battery level measurement
+ * @brief Driver for the control DC motor
  * sensor
  ******************************************************************************/
 
