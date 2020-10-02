@@ -3,6 +3,7 @@
  * @brief Control DC motor via pwm module
  ******************************************************************************/
 
+#include "sl_simple_timer.h"
 #include "sl_app_assert.h"
 #include "sl_sleeptimer.h"
 #include "sl_app_log.h"
@@ -29,6 +30,10 @@ uint8_t pwm_soft_start_profile[] = {
 };
 
 static volatile bool motor_control_enable;
+static volatile bool motor_fault;
+
+static sl_simple_timer_t motor_driver_timer;
+static void motor_driver_timer_cb(sl_simple_timer_t *timer, void *data);
 
 /*******************************************************************************
  *******************************   DEFINES   ***********************************
@@ -45,8 +50,8 @@ void motor_gpio_init(void)
   //                 gpioModeInputPull, 1);
 
   // Fault indicator output from motor driver
-  // GPIO_PinModeSet(MOTOR_OUTPUT_nFAULT_PORT, MOTOR_OUTPUT_nFAULT_PIN,
-  //                 gpioModeInputPullFilter, 1);
+  GPIO_PinModeSet(MOTOR_OUTPUT_nFAULT_PORT, MOTOR_OUTPUT_nFAULT_PIN,
+                  gpioModeInputPullFilter, 1);
 
 }
 
@@ -125,8 +130,16 @@ sl_status_t motor_pwm_init(bool bInit)
 /***************************************************************************//**
  *    execute door lock operation
  ******************************************************************************/
-void door_lock_exec(bool bEnableLock)
+sl_status_t door_lock_exec(bool bEnableLock)
 {
+  sl_status_t sc;
+
+  if ((motor_fault = motor_fault_indicator_read()) == true)
+  {
+    sl_app_log("motor driver return fault signal. \n");
+    return SL_STATUS_ABORT;
+  }
+
   if (bEnableLock == true)
   {
     sl_app_log("door lock.\n");
@@ -136,7 +149,7 @@ void door_lock_exec(bool bEnableLock)
   {
      sl_app_log("door unlock.\n");
      motor_direction_control(false);
-  }  
+  }
 
   if (motor_control_enable != true)
     motor_driver_enable(true);
@@ -148,14 +161,32 @@ void door_lock_exec(bool bEnableLock)
     sl_pwm_set_duty_cycle(&motor_pwm_instance, pwm_soft_start_profile[i]);
 
     if (i == 0)
-    {
       sl_pwm_start(&motor_pwm_instance);
-    }
 
     sl_sleeptimer_delay_millisecond(5);
   }
 
-  sl_sleeptimer_delay_millisecond(1000);
+  sc = sl_simple_timer_start(&motor_driver_timer, MOTOR_CONTROL_INTERVAL_MS,
+                             motor_driver_timer_cb, NULL, false);
+                            
+  return sc;
+}
+
+/***************************************************************************//**
+ *    read the motor fault value
+ ******************************************************************************/
+bool motor_fault_indicator_read(void)
+{
+  return (GPIO_PinInGet(MOTOR_OUTPUT_nFAULT_PORT, MOTOR_OUTPUT_nFAULT_PIN) == 0);
+}
+
+/***************************************************************************//**
+ *   motor driver callback to stop motor operation
+ ******************************************************************************/
+static void motor_driver_timer_cb(sl_simple_timer_t *timer, void *data)
+{
+  (void)data;
+  (void)timer;
 
   sl_pwm_stop(&motor_pwm_instance);
   motor_pwm_init(false);

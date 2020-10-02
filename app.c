@@ -390,7 +390,7 @@ void sl_button_on_change(const sl_button_t *handle)
     if (&sl_button_btn0 == handle) {
       if (door_lock_status == DOOR_UNLOCK)
       {
-        sl_app_log("<button released> - lock the door.\n");
+        sl_app_log("button pressed - lock the door.\n");
 
         door_lock_exec(true);
         door_lock_status = DOOR_LOCK;
@@ -403,7 +403,7 @@ void sl_button_on_change(const sl_button_t *handle)
       }
       else
       {
-        sl_app_log("<button released> - unlock the door.\n");
+        sl_app_log("button pressed - unlock the door.\n");
         
         door_lock_exec(false);
         door_lock_status = DOOR_UNLOCK;

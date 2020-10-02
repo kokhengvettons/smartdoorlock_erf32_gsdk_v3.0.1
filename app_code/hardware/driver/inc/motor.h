@@ -32,6 +32,8 @@ extern "C" {
 #define MOTOR_PWM_PERIPHERAL_NO             0
 #define MOTOR_PWM_OUTPUT_CHANNEL            0
 
+#define MOTOR_CONTROL_INTERVAL_MS           1000
+
 /***************************************************************************//**
  *   Initialize GPIO module
  ******************************************************************************/
@@ -60,12 +62,12 @@ sl_status_t motor_pwm_init(bool bInit);
 /***************************************************************************//**
  *    execute door lock operation
  ******************************************************************************/
-void door_lock_exec(bool bEnableLock);
+sl_status_t door_lock_exec(bool bEnableLock);
 
 /***************************************************************************//**
- *    set motor PWM output as low
+ *    read the motor fault value
  ******************************************************************************/
-void motor_pwm_set_output_low(void);
+bool motor_fault_indicator_read(void);
 
 #ifdef __cplusplus
 }
