@@ -28,6 +28,7 @@
 
 #include "cpt212b.h"
 #include "battery.h"
+#include "motor.h"
 #include "string.h"
 
 // Connection handle.
@@ -107,6 +108,10 @@ SL_WEAK void app_init(void)
   sc = cpt212b_init(sl_i2cspm_sensor, false);
   sl_app_assert(sc == SL_STATUS_OK,
                 "[E: 0x%04x] Failed to init cpt212b keypad.\n", (int)sc);
+
+  sc = motor_control_init();
+  sl_app_assert(sc == SL_STATUS_OK,
+              "[E: 0x%04x] Failed to init dc motor.\n", (int)sc);
 }
 
 /**************************************************************************//**
@@ -357,8 +362,7 @@ void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data)
   {
     if ((door_open_status = GPIO_PinInGet(gpioPortC, 2)) == DOOR_CLOSED)
     {
-      // TODO: lock the door
-
+      door_lock_exec(true);
       door_lock_status = DOOR_LOCK;
 
       uint16_t len = 0;
@@ -388,9 +392,9 @@ void sl_button_on_change(const sl_button_t *handle)
       {
         sl_app_log("<button released> - lock the door.\n");
 
-        //TODO: lock the door
-
+        door_lock_exec(true);
         door_lock_status = DOOR_LOCK;
+
         sc = sl_bt_gatt_server_send_characteristic_notification(
             0xFF, gattdb_door_lock, sizeof(doorLock), doorLock, &len);
         sl_app_assert(sc == SL_STATUS_OK,
@@ -400,10 +404,10 @@ void sl_button_on_change(const sl_button_t *handle)
       else
       {
         sl_app_log("<button released> - unlock the door.\n");
-
-        // TODO: unlock the door
         
+        door_lock_exec(false);
         door_lock_status = DOOR_UNLOCK;
+
         sc = sl_bt_gatt_server_send_characteristic_notification(
             0xFF, gattdb_door_lock, sizeof(doorUnlock), doorUnlock, &len);
         sl_app_assert(sc == SL_STATUS_OK,
@@ -547,8 +551,7 @@ void evt_write_request_door_lock(
   {
     if (memcmp(write_req->value.data, doorLock, write_req->value.len) == 0)
     {
-      // TODO: lock the door
-
+      door_lock_exec(true);
       door_lock_status = DOOR_LOCK;
     }
   }
@@ -556,8 +559,7 @@ void evt_write_request_door_lock(
   {
     if (memcmp(write_req->value.data, doorUnlock, write_req->value.len) == 0)
     {
-      // TODO: lock the door
-
+      door_lock_exec(false);
       door_lock_status = DOOR_UNLOCK;
 
       // kick start the auto door lock timer, and lock the door when time up
