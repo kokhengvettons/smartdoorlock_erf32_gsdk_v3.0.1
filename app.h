@@ -43,12 +43,6 @@ typedef enum
 } door_lock_TypeDef;
 
 typedef enum 
-{     
-    DOOR_CLOSED = 0,
-    DOOR_OPEN = 1,
-} door_status_TypeDef;
-
-typedef enum 
 {
     DISABLE_AUTO_LOCK = 0x00, 
     ENABLE_AUTO_LOCK = 0x01

@@ -29,6 +29,7 @@
 #include "cpt212b.h"
 #include "battery.h"
 #include "motor.h"
+#include "sensor.h"
 #include "string.h"
 
 // Connection handle.
@@ -56,7 +57,7 @@ const uint8_t fac_rst_sn_string[36]       = {"00000000-0000-0000-0000-0000000000
 const uint8_t fac_rst_door_auto_lock      = DISABLE_AUTO_LOCK; 
 
 
-static uint8_t door_open_status           = DOOR_OPEN;
+
 static uint8_t door_lock_status           = DOOR_UNLOCK;
 //static uint8_t door_alarm_status          = DOOR_ALARM_OFF;
 static uint8_t door_auto_lock             = DISABLE_AUTO_LOCK;
@@ -102,16 +103,11 @@ static void evt_special_cmd_handler(
  *****************************************************************************/
 SL_WEAK void app_init(void)
 {
-  sl_status_t sc;
   sl_app_log("Vettons City Smart Door Lock initialized\n");
 
-  sc = cpt212b_init(sl_i2cspm_sensor, false);
-  sl_app_assert(sc == SL_STATUS_OK,
-                "[E: 0x%04x] Failed to init cpt212b keypad.\n", (int)sc);
-
-  sc = motor_control_init();
-  sl_app_assert(sc == SL_STATUS_OK,
-              "[E: 0x%04x] Failed to init dc motor.\n", (int)sc);
+  cpt212b_init(sl_i2cspm_sensor, false);
+  motor_control_init();
+  sensor_init();
 }
 
 /**************************************************************************//**
@@ -360,7 +356,7 @@ void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data)
 
   if (door_lock_status == DOOR_UNLOCK)
   {
-    if ((door_open_status = GPIO_PinInGet(gpioPortC, 2)) == DOOR_CLOSED)
+    if (sensor_read_door_open() == DOOR_CLOSED)
       door_lock_execute(true);
   }    
 }
@@ -487,9 +483,8 @@ static void evt_read_request_door_status(
 {
   sl_status_t sc;
   uint16_t len = 0;
-  door_open_status = GPIO_PinInGet(gpioPortC, 2);
 
-  if (door_open_status == DOOR_OPEN)
+  if (sensor_read_door_open() == DOOR_OPEN)
   {
     sc = sl_bt_gatt_server_send_user_read_response(
         read_req->connection,read_req->characteristic, SL_STATUS_OK,

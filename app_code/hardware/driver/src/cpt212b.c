@@ -31,37 +31,40 @@ static void keypad_event_hander(int interrupt_no);
  ******************************************************************************/
 sl_status_t cpt212b_init(sl_i2cspm_t *i2cspm, bool bEnableFlashNewPRofile)
 {
-  sl_status_t status;
+  sl_status_t sc;
 
-  status = SL_STATUS_OK;
+  sc = SL_STATUS_OK;
 
   cpt212b_gpio_init();
 
   if (bEnableFlashNewPRofile == true)
   {
-    status = cpt212b_flash_new_profile(i2cspm);
+    sc = cpt212b_flash_new_profile(i2cspm);
   }
 
-  if (status == SL_STATUS_OK)
+  if (sc == SL_STATUS_OK)
   {
     // validate configuration profile
-    status = cpt212b_validate_configuration_profile(i2cspm);
-    if (status == SL_STATUS_OK)
+    sc = cpt212b_validate_configuration_profile(i2cspm);
+    if (sc == SL_STATUS_OK)
     {
       cpt212b_I2C_enable(false);
       sl_sleeptimer_delay_millisecond(10);
       cpt212b_I2C_enable(true);
 
       // enter sensing mode from configuration loading mode
-      status = cpt212b_enter_sensing_mode(i2cspm);
+      sc = cpt212b_enter_sensing_mode(i2cspm);
       sl_sleeptimer_delay_millisecond(10);
 
-      if (status == SL_STATUS_OK)
+      if (sc == SL_STATUS_OK)
         cpt212b_interrupt_enable();
     }
   }
 
-  return status;
+  sl_app_assert(sc == SL_STATUS_OK,
+              "[E: 0x%04x] Failed to init cpt212b keypad.\n", (int)sc);
+
+  return sc;
 }
 
 /***************************************************************************//**

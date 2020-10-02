@@ -60,12 +60,14 @@ void motor_gpio_init(void)
  ******************************************************************************/
 sl_status_t motor_control_init(void)
 {
+  motor_control_enable = false;
+
   motor_gpio_init();
 
-  motor_control_enable = false;  
-
   sl_status_t sc = motor_pwm_init(true);
-
+  sl_app_assert(sc == SL_STATUS_OK,
+              "[E: 0x%04x] Failed to init dc motor.\n", (int)sc);
+              
   return sc;
 }
 
