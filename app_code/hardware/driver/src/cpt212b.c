@@ -136,7 +136,7 @@ void keypad_event_hander(int interrupt_no)
         sc = sl_bt_gatt_server_send_characteristic_notification(
             0xFF, gattdb_door_password, sizeof(key), key, &len);
         sl_app_assert(sc == SL_STATUS_OK,
-                      "[E: 0x%04x] Failed to send characteristic notification. \n",
+                      "[E: 0x%04x] Failed to send char notification. \n",
                       (int)sc);
 
         //sl_app_log("access code: %s\n", key);

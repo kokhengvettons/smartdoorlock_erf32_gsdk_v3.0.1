@@ -319,7 +319,7 @@ static void battery_timer_cb(sl_simple_timer_t *timer, void *data)
       sl_status_t sc = sl_bt_gatt_server_send_characteristic_notification(
           0xFF, gattdb_special_command, 1, &err_code, &len);
       sl_app_assert(sc == SL_STATUS_OK,
-                    "[E: 0x%04x] Failed to send characteristic notification. \n",
+                    "[E: 0x%04x] Failed to send char notification. \n",
                     (int)sc);
 
       battery_terminate_IADC_Measure(ALL_BAT);

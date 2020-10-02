@@ -130,7 +130,7 @@ sl_status_t motor_pwm_init(bool bInit)
 /***************************************************************************//**
  *    execute door lock operation
  ******************************************************************************/
-sl_status_t door_lock_exec(bool bEnableLock)
+sl_status_t door_lock_run(bool bEnableLock)
 {
   sl_status_t sc;
 

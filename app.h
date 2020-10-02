@@ -117,4 +117,9 @@ void special_command_default_handler(void);
  *****************************************************************************/
 void exec_door_auto_lock(door_lock_TypeDef status, uint32_t trigger_time_sec);
 
+/**************************************************************************//**
+ * execute door lock operation 
+ *****************************************************************************/
+void door_lock_execute(bool bEnableLock);
+
 #endif // APP_H

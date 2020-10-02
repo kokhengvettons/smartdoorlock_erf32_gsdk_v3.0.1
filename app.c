@@ -361,18 +361,8 @@ void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data)
   if (door_lock_status == DOOR_UNLOCK)
   {
     if ((door_open_status = GPIO_PinInGet(gpioPortC, 2)) == DOOR_CLOSED)
-    {
-      door_lock_exec(true);
-      door_lock_status = DOOR_LOCK;
-
-      uint16_t len = 0;
-      sl_status_t sc = sl_bt_gatt_server_send_characteristic_notification(
-          0xFF, gattdb_door_lock, sizeof(doorLock), doorLock, &len);
-      sl_app_assert(sc == SL_STATUS_OK,
-                  "[E: 0x%04x] Failed to send characteristic notification. \n",
-                  (int)sc);
-    }
-  }
+      door_lock_execute(true);
+  }    
 }
 
 /**************************************************************************//**
@@ -382,37 +372,16 @@ void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data)
  *****************************************************************************/
 void sl_button_on_change(const sl_button_t *handle)
 {
-  sl_status_t sc;
-  uint16_t len = 0;
-
-  // Button pressed.
   if (sl_button_get_state(handle) == SL_SIMPLE_BUTTON_PRESSED) {
-    if (&sl_button_btn0 == handle) {
+    if (&sl_button_btn0 == handle) 
+    {
       if (door_lock_status == DOOR_UNLOCK)
-      {
-        sl_app_log("button pressed - lock the door.\n");
-
-        door_lock_exec(true);
-        door_lock_status = DOOR_LOCK;
-
-        sc = sl_bt_gatt_server_send_characteristic_notification(
-            0xFF, gattdb_door_lock, sizeof(doorLock), doorLock, &len);
-        sl_app_assert(sc == SL_STATUS_OK,
-                    "[E: 0x%04x] Failed to send characteristic notification. \n",
-                    (int)sc);
+      {  
+        door_lock_execute(true);
       }
       else
-      {
-        sl_app_log("button pressed - unlock the door.\n");
-        
-        door_lock_exec(false);
-        door_lock_status = DOOR_UNLOCK;
-
-        sc = sl_bt_gatt_server_send_characteristic_notification(
-            0xFF, gattdb_door_lock, sizeof(doorUnlock), doorUnlock, &len);
-        sl_app_assert(sc == SL_STATUS_OK,
-                    "[E: 0x%04x] Failed to send characteristic notification. \n",
-                    (int)sc);
+      {        
+        door_lock_execute(false);
 
         // kick start the auto door lock timer, and lock the door when time up
         if (door_auto_lock == ENABLE_AUTO_LOCK)
@@ -551,7 +520,7 @@ void evt_write_request_door_lock(
   {
     if (memcmp(write_req->value.data, doorLock, write_req->value.len) == 0)
     {
-      door_lock_exec(true);
+      door_lock_run(true);
       door_lock_status = DOOR_LOCK;
     }
   }
@@ -559,7 +528,7 @@ void evt_write_request_door_lock(
   {
     if (memcmp(write_req->value.data, doorUnlock, write_req->value.len) == 0)
     {
-      door_lock_exec(false);
+      door_lock_run(false);
       door_lock_status = DOOR_UNLOCK;
 
       // kick start the auto door lock timer, and lock the door when time up
@@ -574,6 +543,40 @@ void evt_write_request_door_lock(
                 "[E: 0x%04x] Failed to send user write for door lock\n",
                 (int)sc);
 }
+
+/**************************************************************************//**
+ * execute door lock operation
+ *
+ *****************************************************************************/
+void door_lock_execute(bool bEnableLock)
+{
+  sl_status_t sc;
+  uint16_t len = 0;
+
+  if (bEnableLock == true)
+  {    
+    if ((sc = door_lock_run(true)) == SL_STATUS_OK)
+    {
+      door_lock_status = DOOR_LOCK;
+      sc = sl_bt_gatt_server_send_characteristic_notification(
+        0xFF, gattdb_door_lock, sizeof(doorLock), doorLock, &len);
+    }
+  }
+  else
+  {
+    if ((sc = door_lock_run(false)) == SL_STATUS_OK)
+    {
+      door_lock_status = DOOR_UNLOCK;
+      sc = sl_bt_gatt_server_send_characteristic_notification(
+          0xFF, gattdb_door_lock, sizeof(doorUnlock), doorUnlock, &len);      
+    }
+    sl_app_assert(
+        sc == SL_STATUS_OK,
+        "[E: 0x%04x] Failed to send notification when execute door lock. \n",
+        (int)sc);
+  }
+}
+
 
 /**************************************************************************//**
  * Retrieve the attribute value from flash and write into attribute
@@ -728,7 +731,7 @@ void factory_reset(void)
   sc = sl_bt_gatt_server_send_characteristic_notification(
       0xFF, gattdb_special_command, 1, &err_code, &len);
   sl_app_assert(sc == SL_STATUS_OK,
-                "[E: 0x%04x] Failed to send characteristic notification. \n",
+                "[E: 0x%04x] Failed to send char notification. \n",
                 (int)sc);
 
   // add some delay to reset the device
@@ -767,7 +770,7 @@ void keypad_hardware_test(bool bWriteConfProfile)
   sc = sl_bt_gatt_server_send_characteristic_notification(
       0xFF, gattdb_special_command, 1, &err_code, &len);
   sl_app_assert(sc == SL_STATUS_OK,
-                "[E: 0x%04x] Failed to send characteristic notification. \n",
+                "[E: 0x%04x] Failed to send char notification. \n",
                 (int)sc);
 }
 
@@ -799,7 +802,7 @@ void special_command_default_handler(void)
   sl_status_t sc = sl_bt_gatt_server_send_characteristic_notification(
       0xFF, gattdb_special_command, 1, &err_code, &len);
   sl_app_assert(sc == SL_STATUS_OK,
-              "[E: 0x%04x] Failed to send characteristic notification. \n",
+              "[E: 0x%04x] Failed to send char notification. \n",
               (int)sc);
 }
 
