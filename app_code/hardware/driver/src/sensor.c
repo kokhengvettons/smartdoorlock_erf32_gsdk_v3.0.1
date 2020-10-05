@@ -127,6 +127,7 @@ void sensor_door_open_handler(int interrupt_no)
               (int)sc);
 
     doorlock_trigger_auto_lock_timer(doorlock_get_auto_lock_time());
+    doorlock_stop_alarm_timer();
   }  
 }
 

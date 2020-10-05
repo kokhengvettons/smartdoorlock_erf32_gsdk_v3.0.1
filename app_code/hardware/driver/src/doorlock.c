@@ -112,7 +112,7 @@ sl_status_t doorlock_trigger_auto_lock_timer(uint32_t trigger_time_sec)
  *****************************************************************************/
 sl_status_t doorlock_trigger_alarm_timer(uint32_t trigger_time_sec)
 {
-  sl_app_log("door lock trigger alarm timer. \n");
+  sl_app_log("door lock trigger alarm timer - %d.\n", trigger_time_sec);
 
   sl_status_t sc;
   sc = sl_simple_timer_start(&alarm_timer, trigger_time_sec * 1000,
