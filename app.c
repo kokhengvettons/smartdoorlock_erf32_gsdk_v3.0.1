@@ -47,16 +47,12 @@ static sl_simple_timer_t auto_lock_timer;
 /* Global static variable */
 const uint8_t door_lock[4]                = {"LOCK"};
 const uint8_t door_unlock[6]              = {"UNLOCK"};
-const uint8_t door_open[4]                = {"OPEN"};
-const uint8_t door_closed[6]              = {"CLOSED"};
 const uint8_t fac_rst_device_name[15]     = {"VettonsDoorLock"};
 const uint8_t fac_rst_manufact_name[13]   = {"SmartDoorLock"};
 const uint8_t fac_rst_auto_lock_time[2]   = {0x3C, 0x00};
 const uint8_t fac_rst_door_alarm_time[2]  = {0x1E, 0x00};
 const uint8_t fac_rst_sn_string[36]       = {"00000000-0000-0000-0000-000000000000"};
-const uint8_t fac_rst_door_auto_lock      = DISABLE_AUTO_LOCK; 
-
-
+const uint8_t fac_rst_door_auto_lock      = DISABLE_AUTO_LOCK;
 
 static uint8_t door_lock_status           = DOOR_UNLOCK;
 //static uint8_t door_alarm_status          = DOOR_ALARM_OFF;
@@ -481,22 +477,8 @@ void evt_read_request_door_lock(
 static void evt_read_request_door_status(
     struct sl_bt_evt_gatt_server_user_read_request_s* read_req)
 {
-  sl_status_t sc;
-  uint16_t len = 0;
-
-  if (sensor_read_door_open() == DOOR_OPEN)
-  {
-    sc = sl_bt_gatt_server_send_user_read_response(
-        read_req->connection,read_req->characteristic, SL_STATUS_OK,
-        sizeof(door_open), door_open, &len);
-  }
-  else
-  {
-    sc = sl_bt_gatt_server_send_user_read_response(
-        read_req->connection,read_req->characteristic, SL_STATUS_OK,
-        sizeof(door_closed), door_closed, &len);
-  }
-
+  sl_status_t sc = sensor_read_door_status(read_req->connection,
+                                           read_req->characteristic);
   sl_app_assert(sc == SL_STATUS_OK,
                 "[E: 0x%04x] Failed to send user read request for door status \n",
                 (int)sc);
