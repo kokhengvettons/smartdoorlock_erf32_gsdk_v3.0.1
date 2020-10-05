@@ -5,6 +5,7 @@
  ******************************************************************************/
 #include "sl_simple_timer.h"
 #include "sl_app_assert.h"
+#include "sl_app_log.h"
 #include "sl_bt_api.h"
 #include "gatt_db.h"
 #include "doorlock.h"
@@ -90,6 +91,8 @@ void alarm_timer_cb(sl_simple_timer_t *timer, void *data)
  *****************************************************************************/
 sl_status_t doorlock_trigger_auto_lock_timer(uint32_t trigger_time_sec)
 {
+  sl_app_log("door lock trigger auto lock timer. \n");
+
   sl_status_t sc;
 
   if (doorlock_get_lock_status() == DOOR_UNLOCK)
@@ -109,6 +112,8 @@ sl_status_t doorlock_trigger_auto_lock_timer(uint32_t trigger_time_sec)
  *****************************************************************************/
 sl_status_t doorlock_trigger_alarm_timer(uint32_t trigger_time_sec)
 {
+  sl_app_log("door lock trigger alarm timer. \n");
+
   sl_status_t sc;
   sc = sl_simple_timer_start(&alarm_timer, trigger_time_sec * 1000,
                              alarm_timer_cb, NULL, false);
@@ -128,6 +133,8 @@ sl_status_t doorlock_stop_alarm_timer(void)
   sl_status_t sc;
   if (alarm_timer_is_running == true)
   {
+    sl_app_log("door lock stop alarm timer. \n");
+    
     sc = sl_simple_timer_stop(&alarm_timer);
     sl_app_assert(sc == SL_STATUS_OK,
                   "[E: 0x%04x] Failed to stop alarm timer. \n", (int)sc);    
@@ -143,6 +150,8 @@ sl_status_t doorlock_read_request(uint8_t connection, uint16_t characteristic)
 {
   sl_status_t sc;
   uint16_t len = 0;
+
+  sl_app_log("door lock read request. \n");
 
   if (doorlock_get_lock_status() == DOOR_LOCK)
   {
@@ -166,6 +175,8 @@ sl_status_t doorlock_read_request(uint8_t connection, uint16_t characteristic)
 sl_status_t doorlock_write_request(uint8_t connection, uint16_t characteristic,
                                    uint8_t data[], uint16_t length)
 {
+  sl_app_log("door lock write request. \n");
+
   if (length == sizeof(door_lock_str))
   {
     if (memcmp(data, door_lock_str, length) == 0)
@@ -331,6 +342,8 @@ void doorlock_execute(bool bEnableLock)
  *****************************************************************************/
 void doorlock_when_button_pressed(void)
 {
+  sl_app_log("door pressed to lock/unlock the door lock. \n");
+
   if (doorlock_get_lock_status() == DOOR_UNLOCK)
   {
     doorlock_execute(true);

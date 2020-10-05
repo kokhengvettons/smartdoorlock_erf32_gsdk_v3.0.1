@@ -162,8 +162,8 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
       // Set advertising interval to 100ms.
       sc = sl_bt_advertiser_set_timing(
         advertising_set_handle,
-        160, // min. adv. interval (milliseconds * 1.6)
-        160, // max. adv. interval (milliseconds * 1.6)
+        480, // min. adv. interval (milliseconds * 1.6)
+        480, // max. adv. interval (milliseconds * 1.6)
         0,   // adv. duration
         0);  // max. num. adv. events
       sl_app_assert(sc == SL_STATUS_OK,
@@ -193,6 +193,8 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
     // -------------------------------
     // This event indicates that a new connection was opened.
     case sl_bt_evt_connection_opened_id:
+      sl_bt_connection_set_parameters(
+          evt->data.evt_connection_opened.connection, 120, 160, 2, 600, 0, 0xffff);
       sl_app_log("Connection opened\n");
       break;
 
