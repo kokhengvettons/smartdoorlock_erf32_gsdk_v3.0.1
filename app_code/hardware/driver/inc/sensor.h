@@ -37,7 +37,6 @@ typedef enum
 } door_lock_status_TypeDef;
 
 
-
 /***************************************************************************//**
  *   Initialize GPIO module
  ******************************************************************************/
@@ -49,9 +48,9 @@ void sensor_gpio_init(void);
 sl_status_t sensor_init(void);
 
 /***************************************************************************//**
- *   read the door sensor value
+ *   get the door sensor value
  ******************************************************************************/
-door_status_TypeDef sensor_read_door_open(void);
+door_status_TypeDef sensor_get_door_open(void);
 
 /***************************************************************************//**
  *   read the door lock position sensor value
@@ -74,9 +73,9 @@ void sensor_interrupt_enable(void);
 void sensor_door_open_handler(int interrupt_no);
 
 /***************************************************************************//**
- *   read current door open status
+ *   read request handler for sensor
  ******************************************************************************/
-sl_status_t sensor_read_door_status(uint8_t connection, uint16_t characteristic);
+sl_status_t sensor_read_request(uint8_t connection, uint16_t characteristic);
 
 #ifdef __cplusplus
 }

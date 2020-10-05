@@ -6,10 +6,10 @@
 #include "sl_bt_api.h"
 #include "gatt_db.h"
 #include "gpiointerrupt.h"
-#include "sensor.h"
+#include "doorlock.h"
 #include "em_gpio.h"
+#include "sensor.h"
 #include "app.h"
-
 
 const uint8_t door_open_str[4]                = {"OPEN"};
 const uint8_t door_closed_str[6]              = {"CLOSED"};
@@ -45,9 +45,9 @@ sl_status_t sensor_init(void)
 }
 
 /***************************************************************************//**
- *   read the door sensor value
+ *   get the door sensor value
  ******************************************************************************/
-door_status_TypeDef sensor_read_door_open(void)
+door_status_TypeDef sensor_get_door_open(void)
 {
   if (GPIO_PinInGet(SENSOR_DOOR_OPEN_PORT, SENSOR_DOOR_OPEN_PIN) == DOOR_CLOSED)
     return DOOR_CLOSED;
@@ -108,46 +108,53 @@ void sensor_door_open_handler(int interrupt_no)
   sl_status_t sc;
   uint16_t len = 0;
 
-  if (sensor_read_door_open() == DOOR_OPEN)
+  if (sensor_get_door_open() == DOOR_OPEN)
   {
     sc = sl_bt_gatt_server_send_characteristic_notification(
         0xFF, gattdb_door_status, sizeof(door_open_str), door_open_str, &len);
+    sl_app_assert(sc == SL_STATUS_OK,
+              "[E: 0x%04x] Failed to send notification when door open. \n",
+              (int)sc);
 
-    // TODO: trigger door sensor alarm when door is opened --> start new timer to calculate the time
+    doorlock_trigger_alarm_timer(doorlock_get_alarm_time());
   }
   else
   {
     sc = sl_bt_gatt_server_send_characteristic_notification(
         0xFF, gattdb_door_status, sizeof(door_closed_str), door_closed_str, &len);
+    sl_app_assert(sc == SL_STATUS_OK,
+              "[E: 0x%04x] Failed to send notification when door closed. \n",
+              (int)sc);
 
-    // TODO: Enable auto lock
-
-  }
-  sl_app_assert(sc == SL_STATUS_OK,
-                "[E: 0x%04x] Failed to send notification when door open. \n",
-                (int)sc);
-  
+    doorlock_trigger_auto_lock_timer(doorlock_get_auto_lock_time());
+  }  
 }
 
 /***************************************************************************//**
  *   read current door open status
  ******************************************************************************/
-sl_status_t sensor_read_door_status(uint8_t connection, uint16_t characteristic)
+sl_status_t sensor_read_request(uint8_t connection, uint16_t characteristic)
 {
   sl_status_t sc;
   uint16_t len = 0;
 
-  if (sensor_read_door_open() == DOOR_OPEN)
+  if (sensor_get_door_open() == DOOR_OPEN)
   {
     sc = sl_bt_gatt_server_send_user_read_response(
         connection, characteristic, SL_STATUS_OK, sizeof(door_open_str),
         door_open_str, &len);
+    sl_app_assert(sc == SL_STATUS_OK,
+          "[E: 0x%04x] Failed to send read request when door open. \n",
+          (int)sc);
   }
   else
   {
     sc = sl_bt_gatt_server_send_user_read_response(
         connection, characteristic, SL_STATUS_OK, sizeof(door_closed_str),
         door_closed_str, &len);
+    sl_app_assert(sc == SL_STATUS_OK,
+          "[E: 0x%04x] Failed to send read request when door closed. \n",
+          (int)sc);    
   }
 
   return sc;

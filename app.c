@@ -26,11 +26,11 @@
 #include "gatt_db.h"
 #include "app.h"
 
+#include "doorlock.h"
 #include "cpt212b.h"
 #include "battery.h"
 #include "motor.h"
 #include "sensor.h"
-#include "string.h"
 
 // Connection handle.
 static uint8_t app_connection = 0;
@@ -41,12 +41,7 @@ static uint8_t advertising_set_handle = 0xff;
 // simple timer to reboot the system
 static sl_simple_timer_t simple_timer;
 
-// simple timer to trigger auto lock the door
-static sl_simple_timer_t auto_lock_timer;
-
 /* Global static variable */
-const uint8_t door_lock[4]                = {"LOCK"};
-const uint8_t door_unlock[6]              = {"UNLOCK"};
 const uint8_t fac_rst_device_name[15]     = {"VettonsDoorLock"};
 const uint8_t fac_rst_manufact_name[13]   = {"SmartDoorLock"};
 const uint8_t fac_rst_auto_lock_time[2]   = {0x3C, 0x00};
@@ -54,20 +49,11 @@ const uint8_t fac_rst_door_alarm_time[2]  = {0x1E, 0x00};
 const uint8_t fac_rst_sn_string[36]       = {"00000000-0000-0000-0000-000000000000"};
 const uint8_t fac_rst_door_auto_lock      = DISABLE_AUTO_LOCK;
 
-static uint8_t door_lock_status           = DOOR_UNLOCK;
-//static uint8_t door_alarm_status          = DOOR_ALARM_OFF;
-static uint8_t door_auto_lock             = DISABLE_AUTO_LOCK;
-static uint32_t door_auto_lock_time_in_s  = MIN_DOOR_AUTO_LOCK_SEC;
-static uint32_t door_alarm_time_in_s      = MIN_DOOR_SENSOR_ALARM_SEC;
-
 /**************************************************************************//**
  * Static function declaration
  *****************************************************************************/
 // simple timer callback.
 static void simple_timer_cb(sl_simple_timer_t *timer, void *data);
-
-// auto lock timer callback
-static void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data);
 
 // Battery level indication change callback
 static void battery_level_indication_change_cb(
@@ -342,22 +328,6 @@ void simple_timer_cb(sl_simple_timer_t *timer, void *data)
 }
 
 /**************************************************************************//**
- * Timer callback
- * Called for auto lock the door
- *****************************************************************************/
-void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data)
-{
-  (void)data;
-  (void)timer;
-
-  if (door_lock_status == DOOR_UNLOCK)
-  {
-    if (sensor_read_door_open() == DOOR_CLOSED)
-      door_lock_execute(true);
-  }    
-}
-
-/**************************************************************************//**
  * Door push button to trigger door unlock/lock
  * Button state changed callback
  * @param[in] handle Button event handle
@@ -367,18 +337,7 @@ void sl_button_on_change(const sl_button_t *handle)
   if (sl_button_get_state(handle) == SL_SIMPLE_BUTTON_PRESSED) {
     if (&sl_button_btn0 == handle) 
     {
-      if (door_lock_status == DOOR_UNLOCK)
-      {  
-        door_lock_execute(true);
-      }
-      else
-      {        
-        door_lock_execute(false);
-
-        // kick start the auto door lock timer, and lock the door when time up
-        if (door_auto_lock == ENABLE_AUTO_LOCK)
-          exec_door_auto_lock(door_lock_status, door_auto_lock_time_in_s);
-      }      
+      doorlock_when_button_pressed();
     }
   }
 }
@@ -421,25 +380,17 @@ void evt_write_attribute_value(
 
       if (attribute_id == gattdb_door_auto_lock_time)
       {
-        if (time_in_s <= MIN_DOOR_AUTO_LOCK_SEC ||
-            time_in_s >= MAX_DOOR_AUTO_LOCK_SEC)
-          door_auto_lock_time_in_s = MIN_DOOR_AUTO_LOCK_SEC;
-        else
-          door_auto_lock_time_in_s  = time_in_s;
+        doorlock_set_auto_lock_time(time_in_s);
       }
 
       if (attribute_id == gattdb_door_sensor_alarm_time)
       {
-        if (time_in_s <= MIN_DOOR_SENSOR_ALARM_SEC ||
-            time_in_s >= MAX_DOOR_SENSOR_ALARM_SEC)
-          door_alarm_time_in_s = MIN_DOOR_SENSOR_ALARM_SEC;
-        else
-          door_alarm_time_in_s  = time_in_s;
+        docklock_set_alarm_time(time_in_s);
       }
   }
 
   if (attribute_id == gattdb_enable_auto_door_lock)
-    door_auto_lock = attr_val->value.data[0];
+    doorlock_set_auto_lock_feature(attr_val->value.data[0]);
 }
 
 /**************************************************************************//**
@@ -449,22 +400,8 @@ void evt_write_attribute_value(
 void evt_read_request_door_lock(
     struct sl_bt_evt_gatt_server_user_read_request_s* read_req)
 {
-  sl_status_t sc;
-  uint16_t len = 0;
-
-  if (door_lock_status == DOOR_LOCK)
-  {
-    sc = sl_bt_gatt_server_send_user_read_response(
-        read_req->connection,read_req->characteristic, SL_STATUS_OK,
-        sizeof(door_lock), door_lock, &len);
-  }
-  else
-  {
-    sc = sl_bt_gatt_server_send_user_read_response(
-        read_req->connection, read_req->characteristic, SL_STATUS_OK,
-        sizeof(door_unlock), door_unlock, &len);
-  }
-
+  sl_status_t sc = doorlock_read_request(read_req->connection,
+                                         read_req->characteristic);
   sl_app_assert(sc == SL_STATUS_OK,
                 "[E: 0x%04x] Failed to send user read request for door lock \n",
                 (int)sc);
@@ -477,8 +414,8 @@ void evt_read_request_door_lock(
 static void evt_read_request_door_status(
     struct sl_bt_evt_gatt_server_user_read_request_s* read_req)
 {
-  sl_status_t sc = sensor_read_door_status(read_req->connection,
-                                           read_req->characteristic);
+  sl_status_t sc = sensor_read_request(read_req->connection,
+                                      read_req->characteristic);
   sl_app_assert(sc == SL_STATUS_OK,
                 "[E: 0x%04x] Failed to send user read request for door status \n",
                 (int)sc);
@@ -492,66 +429,11 @@ void evt_write_request_door_lock(
   struct sl_bt_evt_gatt_server_user_write_request_s* write_req)
 {
   sl_status_t sc;
-
-  if (write_req->value.len == sizeof(door_lock))
-  {
-    if (memcmp(write_req->value.data, door_lock, write_req->value.len) == 0)
-    {
-      door_lock_run(true);
-      door_lock_status = DOOR_LOCK;
-    }
-  }
-  else if(write_req->value.len == sizeof(door_unlock))
-  {
-    if (memcmp(write_req->value.data, door_unlock, write_req->value.len) == 0)
-    {
-      door_lock_run(false);
-      door_lock_status = DOOR_UNLOCK;
-
-      // kick start the auto door lock timer, and lock the door when time up
-      if (door_auto_lock == ENABLE_AUTO_LOCK)
-        exec_door_auto_lock(door_lock_status, door_auto_lock_time_in_s);
-    }
-  }
-
-  sc = sl_bt_gatt_server_send_user_write_response(
-      write_req->connection, write_req->characteristic, SL_STATUS_OK);
+  sc = doorlock_write_request(write_req->connection, write_req->characteristic,
+                              write_req->value.data, write_req->value.len);
   sl_app_assert(sc == SL_STATUS_OK,
                 "[E: 0x%04x] Failed to send user write for door lock\n",
                 (int)sc);
-}
-
-/**************************************************************************//**
- * execute door lock operation
- *
- *****************************************************************************/
-void door_lock_execute(bool bEnableLock)
-{
-  sl_status_t sc;
-  uint16_t len = 0;
-
-  if (bEnableLock == true)
-  {    
-    if ((sc = door_lock_run(true)) == SL_STATUS_OK)
-    {
-      door_lock_status = DOOR_LOCK;
-      sc = sl_bt_gatt_server_send_characteristic_notification(
-        0xFF, gattdb_door_lock, sizeof(door_lock), door_lock, &len);
-    }
-  }
-  else
-  {
-    if ((sc = door_lock_run(false)) == SL_STATUS_OK)
-    {
-      door_lock_status = DOOR_UNLOCK;
-      sc = sl_bt_gatt_server_send_characteristic_notification(
-          0xFF, gattdb_door_lock, sizeof(door_unlock), door_unlock, &len);      
-    }
-    sl_app_assert(
-        sc == SL_STATUS_OK,
-        "[E: 0x%04x] Failed to send notification when execute door lock. \n",
-        (int)sc);
-  }
 }
 
 /**************************************************************************//**
@@ -613,22 +495,22 @@ void retrieve_attribute_value_from_flash(uint16_t attribute_id)
     {
       // in case user enter in less than 2 bytes value
       if (buf_len == 2)
-        door_auto_lock_time_in_s = (buf[1] << 8) + buf[0];
+        doorlock_set_auto_lock_time((buf[1] << 8) + buf[0]);
       else
-        door_auto_lock_time_in_s = buf[0];
+        doorlock_set_auto_lock_time(buf[0]);
     }
 
     if (attribute_id == gattdb_door_sensor_alarm_time)
     {
       // in case user enter in less than 2 bytes value
       if (buf_len == 2)
-        door_alarm_time_in_s = (buf[1] << 8) + buf[0];
+        docklock_set_alarm_time((buf[1] << 8) + buf[0]);
       else
-        door_alarm_time_in_s = buf[0];
+        docklock_set_alarm_time(buf[0]);
     }
 
     if (attribute_id == gattdb_enable_auto_door_lock)
-      door_auto_lock = buf[0];
+      doorlock_set_auto_lock_feature(buf[0]);
   }
 }
 
@@ -780,24 +662,6 @@ void special_command_default_handler(void)
   sl_app_assert(sc == SL_STATUS_OK,
               "[E: 0x%04x] Failed to send char notification. \n",
               (int)sc);
-}
-
-/**************************************************************************//**
- * Execute auto door lock feature when unlock status
- *
- *****************************************************************************/
-void exec_door_auto_lock(door_lock_TypeDef status, uint32_t trigger_time_sec)
-{
-  sl_status_t sc;
-
-  if (status == DOOR_UNLOCK)
-  {
-    sc = sl_simple_timer_start(&auto_lock_timer, trigger_time_sec * 1000,
-                               auto_lock_timer_cb, NULL, false);
-    sl_app_assert(sc == SL_STATUS_OK,
-                  "[E: 0x%04x] Failed to create auto lock timer. \n",
-                  (int)sc);
-  }
 }
 
 #ifdef SL_CATALOG_CLI_PRESENT

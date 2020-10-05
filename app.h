@@ -23,10 +23,6 @@
 
 
 #define FACTORY_RESET_INTERVAL_SEC            2       //  2s
-#define MAX_DOOR_AUTO_LOCK_SEC                300     //  300s
-#define MIN_DOOR_AUTO_LOCK_SEC                60      //  60s
-#define MAX_DOOR_SENSOR_ALARM_SEC             300     //  300s
-#define MIN_DOOR_SENSOR_ALARM_SEC             30      //  30s
 
 #define PS_KEY_BASE                           0x4000
 
@@ -36,24 +32,6 @@
 /*******************************************************************************
  *********************************   ENUM   ************************************
  ******************************************************************************/
-typedef enum 
-{
-    DOOR_UNLOCK = 0, 
-    DOOR_LOCK = 1,
-} door_lock_TypeDef;
-
-typedef enum 
-{
-    DISABLE_AUTO_LOCK = 0x00, 
-    ENABLE_AUTO_LOCK = 0x01
-} enable_auto_lock_TypeDef;
-
-typedef enum 
-{
-    DOOR_ALARM_OFF = 0x00, 
-    DOOR_ALARM_ON = 0x01
-} door_sensor_alarm_TypeDef;
-
 enum special_cmd_error_code
 {
 	special_cmd_success = 0x00,
@@ -105,15 +83,5 @@ void battery_measurement_test(void);
  *
  *****************************************************************************/
 void special_command_default_handler(void);
-
-/**************************************************************************//**
- * Execute auto door lock feature when unlock status
- *****************************************************************************/
-void exec_door_auto_lock(door_lock_TypeDef status, uint32_t trigger_time_sec);
-
-/**************************************************************************//**
- * execute door lock operation 
- *****************************************************************************/
-void door_lock_execute(bool bEnableLock);
 
 #endif // APP_H
