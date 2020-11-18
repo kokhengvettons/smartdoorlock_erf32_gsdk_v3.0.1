@@ -153,6 +153,9 @@ void sl_bt_on_event(sl_bt_msg_t *evt)
                     "[E: 0x%04x] Failed to write attribute\n",
                     (int)sc);
 
+      // retrieve the attribute value from flash
+      attribute_value_init();
+
       // Create an advertising set.
       sc = sl_bt_advertiser_create_set(&advertising_set_handle);
       sl_app_assert(sc == SL_STATUS_OK,
