@@ -3,7 +3,7 @@
  * @brief Battery measure via IADC module
  ******************************************************************************/
 
-#include "sl_simple_timer.h"
+#include "sl_sleeptimer.h"
 #include "sl_app_assert.h"
 #include "sl_app_log.h"
 #include "sl_status.h"
@@ -24,8 +24,8 @@
 #define FEATURE_MEASURE_MOTOR_BATTERY_PROFILE           0
 
 static battery_measure_mode_t battery_measure_mode;
-static sl_simple_timer_t battery_motor_profile_timer;
-static sl_simple_timer_t battery_timer;
+static sl_sleeptimer_timer_handle_t battery_motor_profile_timer;
+static sl_sleeptimer_timer_handle_t battery_timer;
 
 static uint32_t battery_timer_counter;
 static uint16_t IadcSteps[NUM_IADC_INPUT];
@@ -37,8 +37,9 @@ static volatile bool battery_level_enable;
 static volatile bool battery_test_enable;
 
 // Periodic timer callback.
-static void battery_timer_cb(sl_simple_timer_t *timer, void *data);
-static void battery_motor_profile_timer_cb(sl_simple_timer_t *timer, void *data);
+static void battery_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data);
+static void battery_motor_profile_timer_cb(sl_sleeptimer_timer_handle_t *timer,
+                                           void *data);
 
 /***************************************************************************//**
  *    Initialize battery measurement via IADC module
@@ -169,15 +170,16 @@ sl_status_t battery_trigger_IADC_measure(battery_measure_mode_t measure_mode)
     Iadc_sample_idx = 0;
     memset(IadcStepsMotor, 0, sizeof(IadcStepsMotor));
 
-    sc = sl_simple_timer_start(&battery_motor_profile_timer,
-                               BATTERY_MOTOR_PROFILE_INTERVAL_MS,
-                               battery_motor_profile_timer_cb, NULL, true);
+    sc = sl_sleeptimer_start_periodic_timer_ms(&battery_motor_profile_timer,
+                                               BATTERY_MOTOR_PROFILE_INTERVAL_MS,
+                                               battery_motor_profile_timer_cb,
+                                               NULL, 0, 0);
   }
   else
   {
-    sc = sl_simple_timer_start(&battery_timer,
-                               BATTERY_MEASUREMENT_INTERVAL_SEC * 1000,
-                               battery_timer_cb, NULL, true);
+    sc = sl_sleeptimer_start_periodic_timer_ms(&battery_timer,
+                                               BATTERY_MEASUREMENT_INTERVAL_SEC * 1000,
+                                               battery_timer_cb, NULL, 0, 0);
   }
 
   battery_trigger_IADC_scan_again();
@@ -202,7 +204,7 @@ void battery_terminate_IADC_Measure(battery_measure_mode_t measure_mode)
 
   if (measure_mode == MOTOR_PROFILE_BAT)
   {
-    sl_simple_timer_stop(&battery_motor_profile_timer);
+     (void)sl_sleeptimer_stop_timer(&battery_motor_profile_timer);
     IADC_command(IADC0, iadcCmdStopScan);
 
     sl_app_log("Battery Level: disable battery motor profile measurement \n");
@@ -210,7 +212,7 @@ void battery_terminate_IADC_Measure(battery_measure_mode_t measure_mode)
   else
   {
     // terminate all battery level measurement
-    (void)sl_simple_timer_stop(&battery_timer);
+    (void)sl_sleeptimer_stop_timer(&battery_timer);
     IADC_command(IADC0, iadcCmdStopScan);
     battery_level_enable = false;
 
@@ -263,7 +265,7 @@ void IADC_IRQHandler(void)
 /***************************************************************************//**
  *   Timer callback for battery measurement
  ******************************************************************************/
-static void battery_timer_cb(sl_simple_timer_t *timer, void *data)
+static void battery_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data)
 {
   (void)data;
   (void)timer;
@@ -359,14 +361,14 @@ static void battery_timer_cb(sl_simple_timer_t *timer, void *data)
 /***************************************************************************//**
  *   Timer callback for battery motor profile measurement
  ******************************************************************************/
-static void battery_motor_profile_timer_cb(sl_simple_timer_t *timer, void *data)
+static void battery_motor_profile_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data)
 {
   (void)data;
   (void)timer;
 
   if (Iadc_sample_idx >= BATTERY_MOTOR_PROFILE_SAMPLE_SIZE )
   {
-    (void)sl_simple_timer_stop(&battery_motor_profile_timer);
+    (void)sl_sleeptimer_stop_timer(&battery_motor_profile_timer);
     Iadc_sample_idx = 0;
   }
   else

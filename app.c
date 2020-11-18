@@ -38,8 +38,8 @@ static uint8_t app_connection = 0;
 // The advertising set handle allocated from Bluetooth stack.
 static uint8_t advertising_set_handle = 0xff;
 
-// simple timer to reboot the system
-static sl_simple_timer_t simple_timer;
+// timer to reboot the system
+static sl_sleeptimer_timer_handle_t system_reset_timer;
 
 /* Global static variable */
 const uint8_t fac_rst_device_name[15]     = {"VettonsDoorLock"};
@@ -53,7 +53,7 @@ const uint8_t fac_rst_door_auto_lock      = DISABLE_AUTO_LOCK;
  * Static function declaration
  *****************************************************************************/
 // simple timer callback.
-static void simple_timer_cb(sl_simple_timer_t *timer, void *data);
+static void system_reset_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data);
 
 // Battery level indication change callback
 static void battery_level_indication_change_cb(
@@ -321,7 +321,7 @@ void battery_level_indication_change_cb(
  * Timer callback
  * Called for system reboot when time up.
  *****************************************************************************/
-void simple_timer_cb(sl_simple_timer_t *timer, void *data)
+void system_reset_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data)
 {
   (void)data;
   (void)timer;
@@ -595,9 +595,9 @@ void factory_reset(void)
                 (int)sc);
 
   // add some delay to reset the device
-  sc = sl_simple_timer_start(&simple_timer,
-                             FACTORY_RESET_INTERVAL_SEC * 1000,
-                             simple_timer_cb, NULL, false);
+  sc = sl_sleeptimer_start_timer_ms(&system_reset_timer,
+                                    FACTORY_RESET_INTERVAL_SEC * 1000,
+                                    system_reset_timer_cb, NULL, 0, 0);
   sl_app_assert(sc == SL_STATUS_OK,
               "[E: 0x%04x] Failed to create simple timer. \n", (int)sc);
 }

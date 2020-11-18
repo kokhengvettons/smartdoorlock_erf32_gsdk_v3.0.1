@@ -3,7 +3,7 @@
  * @brief Driver for the control DC motor
  ******************************************************************************/
 
-#include "sl_simple_timer.h"
+#include "sl_sleeptimer.h"
 #include "sl_app_assert.h"
 #include "sl_sleeptimer.h"
 #include "sl_app_log.h"
@@ -32,8 +32,8 @@ uint8_t pwm_soft_start_profile[] = {
 static volatile bool motor_control_enable;
 static volatile bool motor_fault;
 
-static sl_simple_timer_t motor_driver_timer;
-static void motor_driver_timer_cb(sl_simple_timer_t *timer, void *data);
+static sl_sleeptimer_timer_handle_t motor_driver_timer;
+static void motor_driver_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data);
 
 /*******************************************************************************
  *******************************   DEFINES   ***********************************
@@ -168,8 +168,8 @@ sl_status_t motor_exec_lock(bool bEnableLock)
     sl_sleeptimer_delay_millisecond(5);
   }
 
-  sc = sl_simple_timer_start(&motor_driver_timer, MOTOR_CONTROL_INTERVAL_MS,
-                             motor_driver_timer_cb, NULL, false);
+  sc = sl_sleeptimer_start_timer_ms(&motor_driver_timer, MOTOR_CONTROL_INTERVAL_MS,
+                                    motor_driver_timer_cb, NULL, 0, 0);
                             
   return sc;
 }
@@ -185,7 +185,7 @@ bool motor_fault_indicator_read(void)
 /***************************************************************************//**
  *   motor driver callback to stop motor operation
  ******************************************************************************/
-static void motor_driver_timer_cb(sl_simple_timer_t *timer, void *data)
+static void motor_driver_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data)
 {
   (void)data;
   (void)timer;

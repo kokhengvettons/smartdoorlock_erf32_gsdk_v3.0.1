@@ -3,7 +3,7 @@
  * @brief handler door lock operation
  * sensor
  ******************************************************************************/
-#include "sl_simple_timer.h"
+#include "sl_sleeptimer.h"
 #include "sl_app_assert.h"
 #include "sl_app_log.h"
 #include "sl_bt_api.h"
@@ -25,13 +25,12 @@ static uint32_t door_alarm_time_in_s      = MIN_DOOR_SENSOR_ALARM_SEC;
 
 static bool alarm_timer_is_running        = false;
 
-// simple timer to trigger auto lock the door
-static sl_simple_timer_t auto_lock_timer;
-static void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data);
+// timer to trigger auto lock the door
+static sl_sleeptimer_timer_handle_t auto_lock_timer;
+static sl_sleeptimer_timer_handle_t alarm_timer;
 
-// simple timer to trigger door alarm
-static sl_simple_timer_t alarm_timer;
-static void alarm_timer_cb(sl_simple_timer_t *timer, void *data);
+static void auto_lock_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data);
+static void alarm_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data);
 
 /*******************************************************************************
  *******************************   DEFINES   ***********************************
@@ -42,7 +41,7 @@ static void alarm_timer_cb(sl_simple_timer_t *timer, void *data);
  * Timer callback
  * Called for auto lock the door
  *****************************************************************************/
-void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data)
+void auto_lock_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data)
 {
   (void)data;
   (void)timer;
@@ -58,7 +57,7 @@ void auto_lock_timer_cb(sl_simple_timer_t *timer, void *data)
  * Timer callback
  * Called for trigger door alarm
  *****************************************************************************/
-void alarm_timer_cb(sl_simple_timer_t *timer, void *data)
+void alarm_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data)
 {
   (void)data;
   (void)timer;
@@ -77,7 +76,7 @@ void alarm_timer_cb(sl_simple_timer_t *timer, void *data)
     sl_app_assert(sc == SL_STATUS_OK,
               "[E: 0x%04x] Failed to send notification when alarm on. \n", (int)sc);
     
-    // TODO: Turn on Buzzer
+    // TODO[LAI]: Turn on Buzzer
 
   }
   else
@@ -97,8 +96,8 @@ sl_status_t doorlock_trigger_auto_lock_timer(uint32_t trigger_time_sec)
 
   if (doorlock_get_lock_status() == DOOR_UNLOCK)
   {
-    sc = sl_simple_timer_start(&auto_lock_timer, trigger_time_sec * 1000,
-                               auto_lock_timer_cb, NULL, false);
+    sc = sl_sleeptimer_start_timer_ms(&auto_lock_timer, trigger_time_sec * 1000,
+                                      auto_lock_timer_cb, NULL, 0, 0);
     sl_app_assert(sc == SL_STATUS_OK,
                   "[E: 0x%04x] Failed to create auto lock timer. \n",
                   (int)sc);
@@ -115,8 +114,8 @@ sl_status_t doorlock_trigger_alarm_timer(uint32_t trigger_time_sec)
   sl_app_log("door lock trigger alarm timer - %d.\n", trigger_time_sec);
 
   sl_status_t sc;
-  sc = sl_simple_timer_start(&alarm_timer, trigger_time_sec * 1000,
-                             alarm_timer_cb, NULL, false);
+  sc = sl_sleeptimer_start_timer_ms(&alarm_timer, trigger_time_sec * 1000,
+                                    alarm_timer_cb, NULL, 0, 0);
   sl_app_assert(sc == SL_STATUS_OK,
                 "[E: 0x%04x] Failed to create alarm timer. \n", (int)sc);
 
@@ -135,7 +134,7 @@ sl_status_t doorlock_stop_alarm_timer(void)
   {
     sl_app_log("door lock stop alarm timer. \n");
     
-    sc = sl_simple_timer_stop(&alarm_timer);
+    sc = sl_sleeptimer_stop_timer(&alarm_timer);
     sl_app_assert(sc == SL_STATUS_OK,
                   "[E: 0x%04x] Failed to stop alarm timer. \n", (int)sc);    
   }
