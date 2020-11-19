@@ -28,6 +28,9 @@
 
 #define INT_SOURCE_KEYPAD_EVENT               1
 #define INT_SOURCE_DOOR_SENSOR                2
+#define INT_SOURCE_DOOR_LOCK_POS_1            3
+#define INT_SOURCE_DOOR_LOCK_POS_2            4
+#define INT_SOURCE_DOOR_LOCK_POS_3            5
 
 /*******************************************************************************
  *********************************   ENUM   ************************************

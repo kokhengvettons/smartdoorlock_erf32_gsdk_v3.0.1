@@ -14,6 +14,8 @@
 const uint8_t door_open_str[4]                = {"OPEN"};
 const uint8_t door_closed_str[6]              = {"CLOSED"};
 
+static door_lock_status_TypeDef door_lock_status;
+
 /*******************************************************************************
  *******************************   DEFINES   ***********************************
  ******************************************************************************/
@@ -76,26 +78,47 @@ uint8_t sensor_read_door_lock_position(uint8_t sensorNum)
 door_lock_status_TypeDef sensor_get_door_lock_status(void)
 {
   if (sensor_read_door_lock_position(3) == 1)
-    return DOOR_LOCK_COMPLETED;
+    return DOOR_LOCK_FULL;
   else if (sensor_read_door_lock_position(1) != 1)
     return DOOR_LOCK_OPEN;
   else
-    return DOOR_LOCK_PARTIALLY;
+    return DOOR_LOCK_HALF;
 }
 
 /***************************************************************************//**
  *   enable door open sensor interrupt
  ******************************************************************************/
-void sensor_interrupt_enable(void)
+void sensor_door_open_interrupt_enable(void)
 {
-  // configure PC01 as falling edge trigger on GPIO interrupt source 1
+  // configure PC01 as falling & raising edge trigger on GPIO interrupt source 1
   // for keypad event
   GPIO_ExtIntConfig(SENSOR_DOOR_OPEN_PORT, SENSOR_DOOR_OPEN_PIN,
                     INT_SOURCE_DOOR_SENSOR, true, true, true);
 
   GPIOINT_Init();
-  GPIOINT_CallbackRegister(INT_SOURCE_KEYPAD_EVENT,
+  GPIOINT_CallbackRegister(INT_SOURCE_DOOR_SENSOR,
                            (GPIOINT_IrqCallbackPtr_t)sensor_door_open_handler);
+}
+
+/***************************************************************************//**
+ *   enable door lock position sensor interrupt
+ ******************************************************************************/
+void sensor_door_lock_position_interrupt_enable(void)
+{
+  GPIO_ExtIntConfig(SENSOR_DOOR_LOCK_POS_1_PORT, SENSOR_DOOR_LOCK_POS_1_PIN,
+                    INT_SOURCE_DOOR_LOCK_POS_1, true, true, true);
+  GPIO_ExtIntConfig(SENSOR_DOOR_LOCK_POS_2_PORT, SENSOR_DOOR_LOCK_POS_2_PIN,
+                    INT_SOURCE_DOOR_LOCK_POS_2, true, true, true);
+  GPIO_ExtIntConfig(SENSOR_DOOR_LOCK_POS_3_PORT, SENSOR_DOOR_LOCK_POS_3_PIN,
+                    INT_SOURCE_DOOR_LOCK_POS_3, true, true, true);
+
+  GPIOINT_Init();
+  GPIOINT_CallbackRegister(INT_SOURCE_DOOR_LOCK_POS_1,
+                           (GPIOINT_IrqCallbackPtr_t)sensor_door_lock_position_handler);
+  GPIOINT_CallbackRegister(INT_SOURCE_DOOR_LOCK_POS_2,
+                           (GPIOINT_IrqCallbackPtr_t)sensor_door_lock_position_handler);
+  GPIOINT_CallbackRegister(INT_SOURCE_DOOR_LOCK_POS_3,
+                           (GPIOINT_IrqCallbackPtr_t)sensor_door_lock_position_handler);
 }
 
 /***************************************************************************//**
@@ -129,6 +152,30 @@ void sensor_door_open_handler(int interrupt_no)
     doorlock_trigger_auto_lock_timer(doorlock_get_auto_lock_time());
     doorlock_stop_alarm_timer();
   }  
+}
+
+/***************************************************************************//**
+ *   door open sensor interrupt handler
+ ******************************************************************************/
+void sensor_door_lock_position_handler(int interrupt_no)
+{
+  (void) interrupt_no;
+
+  sl_status_t sc;
+
+  door_lock_status = sensor_get_door_lock_status();
+  if (door_lock_status == DOOR_LOCK_FULL)
+  {
+
+  }
+  else if (door_lock_status == DOOR_LOCK_OPEN)
+  {
+
+  }
+  else
+  {
+
+  }
 }
 
 /***************************************************************************//**

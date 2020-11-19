@@ -16,7 +16,6 @@
 
 const uint8_t door_lock_str[4]            = {"LOCK"};
 const uint8_t door_unlock_str[6]          = {"UNLOCK"};
-static uint8_t door_lock_status           = DOOR_UNLOCK;
 static uint8_t door_alarm_status          = DOOR_ALARM_OFF;
 static uint8_t door_auto_lock             = DISABLE_AUTO_LOCK;
 
@@ -46,8 +45,10 @@ void auto_lock_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *data)
   (void)data;
   (void)timer;
 
-  if (doorlock_get_lock_status() == DOOR_UNLOCK)
+  if (sensor_get_door_lock_status() == DOOR_LOCK_OPEN || 
+    sensor_get_door_lock_status() == DOOR_LOCK_HALF)
   {
+    // if detect door is closed but without lock
     if (sensor_get_door_open() == DOOR_CLOSED)
       doorlock_execute(true);
   }    
@@ -94,7 +95,8 @@ sl_status_t doorlock_trigger_auto_lock_timer(uint32_t trigger_time_sec)
 
   sl_status_t sc;
 
-  if (doorlock_get_lock_status() == DOOR_UNLOCK)
+  if (sensor_get_door_lock_status() == DOOR_LOCK_OPEN || 
+    sensor_get_door_lock_status() == DOOR_LOCK_HALF)
   {
     sc = sl_sleeptimer_start_timer_ms(&auto_lock_timer, trigger_time_sec * 1000,
                                       auto_lock_timer_cb, NULL, 0, 0);
@@ -152,7 +154,7 @@ sl_status_t doorlock_read_request(uint8_t connection, uint16_t characteristic)
 
   sl_app_log("door lock read request. \n");
 
-  if (doorlock_get_lock_status() == DOOR_LOCK)
+  if (sensor_get_door_lock_status() == DOOR_LOCK_FULL)
   {
     sc = sl_bt_gatt_server_send_user_read_response(
         connection, characteristic, SL_STATUS_OK, sizeof(door_lock_str),
@@ -181,7 +183,6 @@ sl_status_t doorlock_write_request(uint8_t connection, uint16_t characteristic,
     if (memcmp(data, door_lock_str, length) == 0)
     {
       motor_exec_lock(true);
-      doorlock_set_lock_status(DOOR_LOCK);
     }
   }
   else if (length == sizeof(door_unlock_str))
@@ -189,7 +190,6 @@ sl_status_t doorlock_write_request(uint8_t connection, uint16_t characteristic,
     if (memcmp(data, door_unlock_str, length) == 0)
     {
       motor_exec_lock(false);
-      doorlock_set_lock_status(DOOR_UNLOCK);
 
       // kick start the auto door lock timer, and lock the door when time up
       if (doorlock_get_auto_lock_feature() == ENABLE_AUTO_LOCK)
@@ -201,14 +201,6 @@ sl_status_t doorlock_write_request(uint8_t connection, uint16_t characteristic,
       connection, characteristic, SL_STATUS_OK);
 
   return sc;
-}
-
-/***************************************************************************//**
- *   get door lock current lock status
- ******************************************************************************/
-door_lock_TypeDef doorlock_get_lock_status(void)
-{
-  return door_lock_status;
 }
 
 /***************************************************************************//**
@@ -241,17 +233,6 @@ uint32_t doorlock_get_alarm_time(void)
 door_alarm_TypeDef doorlock_get_alarm_status(void)
 {
   return door_alarm_status;
-}
-
-/***************************************************************************//**
- *   set door lock current lock status
- ******************************************************************************/
-void doorlock_set_lock_status(door_lock_TypeDef value)
-{
-  if (value == DOOR_UNLOCK  || value == DOOR_LOCK)
-  {
-    door_lock_status = value;
-  }
 }
 
 /***************************************************************************//**
@@ -316,7 +297,6 @@ void doorlock_execute(bool bEnableLock)
   {    
     if ((sc = motor_exec_lock(true)) == SL_STATUS_OK)
     {
-      doorlock_set_lock_status(DOOR_LOCK);
       sc = sl_bt_gatt_server_send_characteristic_notification(
         0xFF, gattdb_door_lock, sizeof(door_lock_str), door_lock_str, &len);
     }
@@ -325,7 +305,6 @@ void doorlock_execute(bool bEnableLock)
   {
     if ((sc = motor_exec_lock(false)) == SL_STATUS_OK)
     {
-      doorlock_set_lock_status(DOOR_UNLOCK);
       sc = sl_bt_gatt_server_send_characteristic_notification(
           0xFF, gattdb_door_lock, sizeof(door_unlock_str), door_unlock_str, &len);      
     }
@@ -343,7 +322,8 @@ void doorlock_when_button_pressed(void)
 {
   sl_app_log("door pressed to lock/unlock the door lock. \n");
 
-  if (doorlock_get_lock_status() == DOOR_UNLOCK)
+  if (sensor_get_door_lock_status() == DOOR_LOCK_OPEN || 
+      sensor_get_door_lock_status() == DOOR_LOCK_HALF)
   {
     doorlock_execute(true);
   }

@@ -8,6 +8,7 @@
 #define DOORLOCK_H_
 
 #include "sl_status.h"
+#include "sensor.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -18,12 +19,6 @@ extern "C" {
 #define MIN_DOOR_AUTO_LOCK_SEC                60      //  60s
 #define MAX_DOOR_SENSOR_ALARM_SEC             300     //  300s
 #define MIN_DOOR_SENSOR_ALARM_SEC             30      //  30s
-
-typedef enum 
-{
-    DOOR_UNLOCK = 0, 
-    DOOR_LOCK = 1,
-} door_lock_TypeDef;
 
 typedef enum 
 {
@@ -64,11 +59,6 @@ sl_status_t doorlock_write_request(uint8_t connection, uint16_t characteristic,
                                    uint8_t data[], uint16_t length);
 
 /***************************************************************************//**
- *   get door lock current lock status
- ******************************************************************************/
-door_lock_TypeDef doorlock_get_lock_status(void);
-
-/***************************************************************************//**
  *   get current auto lock feature
  ******************************************************************************/
 door_auto_lock_TypeDef doorlock_get_auto_lock_feature(void);
@@ -87,11 +77,6 @@ uint32_t doorlock_get_alarm_time(void);
  *   get current door alarm status
  ******************************************************************************/
 door_alarm_TypeDef doorlock_get_alarm_status(void);
-
-/***************************************************************************//**
- *   set door lock current lock status
- ******************************************************************************/
-void doorlock_set_lock_status(door_lock_TypeDef value);
 
 /***************************************************************************//**
  *   set door auto lock feature - on or off

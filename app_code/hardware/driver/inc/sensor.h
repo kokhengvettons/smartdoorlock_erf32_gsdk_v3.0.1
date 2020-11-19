@@ -8,6 +8,7 @@
 #define SENSOR_H_
 
 #include "sl_status.h"
+#include "doorlock.h"
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -32,8 +33,8 @@ typedef enum
 typedef enum 
 {     
     DOOR_LOCK_OPEN = 0,
-    DOOR_LOCK_PARTIALLY = 1,
-    DOOR_LOCK_COMPLETED = 2,
+    DOOR_LOCK_HALF = 1,
+    DOOR_LOCK_FULL = 2,
 } door_lock_status_TypeDef;
 
 
@@ -65,12 +66,22 @@ door_lock_status_TypeDef sensor_get_door_lock_status(void);
 /***************************************************************************//**
  *   enable door open sensor interrupt
  ******************************************************************************/
-void sensor_interrupt_enable(void);
+void sensor_door_open_interrupt_enable(void);
+
+/***************************************************************************//**
+ *   enable door lock position sensor interrupt
+ ******************************************************************************/
+void sensor_door_lock_position_interrupt_enable(void);
 
 /***************************************************************************//**
  *   door open sensor interrupt handler
  ******************************************************************************/
 void sensor_door_open_handler(int interrupt_no);
+
+/***************************************************************************//**
+ *   door open sensor interrupt handler
+ ******************************************************************************/
+void sensor_door_lock_position_handler(int interrupt_no);
 
 /***************************************************************************//**
  *   read request handler for sensor
