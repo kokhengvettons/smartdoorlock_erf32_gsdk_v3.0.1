@@ -9,12 +9,15 @@
 #include "doorlock.h"
 #include "em_gpio.h"
 #include "sensor.h"
+#include "motor.h"
 #include "app.h"
 
 const uint8_t door_open_str[4]                = {"OPEN"};
 const uint8_t door_closed_str[6]              = {"CLOSED"};
 
 static door_lock_status_TypeDef door_lock_status;
+
+static bool door_lock_is_running;
 
 /*******************************************************************************
  *******************************   DEFINES   ***********************************
@@ -106,11 +109,11 @@ void sensor_door_open_interrupt_enable(void)
 void sensor_door_lock_position_interrupt_enable(void)
 {
   GPIO_ExtIntConfig(SENSOR_DOOR_LOCK_POS_1_PORT, SENSOR_DOOR_LOCK_POS_1_PIN,
-                    INT_SOURCE_DOOR_LOCK_POS_1, true, true, true);
+                    INT_SOURCE_DOOR_LOCK_POS_1, true, false, true);
   GPIO_ExtIntConfig(SENSOR_DOOR_LOCK_POS_2_PORT, SENSOR_DOOR_LOCK_POS_2_PIN,
-                    INT_SOURCE_DOOR_LOCK_POS_2, true, true, true);
+                    INT_SOURCE_DOOR_LOCK_POS_2, true, false, true);
   GPIO_ExtIntConfig(SENSOR_DOOR_LOCK_POS_3_PORT, SENSOR_DOOR_LOCK_POS_3_PIN,
-                    INT_SOURCE_DOOR_LOCK_POS_3, true, true, true);
+                    INT_SOURCE_DOOR_LOCK_POS_3, true, false, true);
 
   GPIOINT_Init();
   GPIOINT_CallbackRegister(INT_SOURCE_DOOR_LOCK_POS_1,
@@ -161,20 +164,25 @@ void sensor_door_lock_position_handler(int interrupt_no)
 {
   (void) interrupt_no;
 
-  sl_status_t sc;
-
-  door_lock_status = sensor_get_door_lock_status();
-  if (door_lock_status == DOOR_LOCK_FULL)
+  if (door_lock_is_running == true)
   {
+    // terminate DC motor when is lock is open
+    if (door_lock_status == DOOR_LOCK_FULL)
+    {
+      if (sensor_get_door_lock_status() == DOOR_LOCK_OPEN)
+      {
+        door_lock_is_running = false;
+        motor_operation_terminate();
+      }
+    }
 
-  }
-  else if (door_lock_status == DOOR_LOCK_OPEN)
-  {
-
-  }
-  else
-  {
-
+    // terminate DC motor when is lock is locked
+    if (door_lock_status == DOOR_LOCK_OPEN && 
+        sensor_get_door_lock_status() == DOOR_LOCK_FULL)
+    {
+      door_lock_is_running = false;
+      motor_operation_terminate();
+    }
   }
 }
 
@@ -206,4 +214,13 @@ sl_status_t sensor_read_request(uint8_t connection, uint16_t characteristic)
   }
 
   return sc;
+}
+
+/***************************************************************************//**
+ *   set door lock operation flag
+ ******************************************************************************/
+void sensor_set_door_lock_operation(bool bRunning)
+{
+  door_lock_is_running = bRunning;
+  door_lock_status = sensor_get_door_lock_status();
 }

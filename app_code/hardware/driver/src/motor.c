@@ -11,6 +11,7 @@
 #include "sl_pwm.h"
 #include "motor.h"
 #include "em_gpio.h"
+#include "sensor.h"
 
 
 sl_pwm_instance_t motor_pwm_instance = {
@@ -134,13 +135,16 @@ sl_status_t motor_pwm_init(bool bInit)
  ******************************************************************************/
 sl_status_t motor_exec_lock(bool bEnableLock)
 {
-  sl_status_t sc;
+  sl_status_t sc = SL_STATUS_OK;
 
   if ((motor_fault = motor_fault_indicator_read()) == true)
   {
     sl_app_log("motor driver return fault signal. \n");
     return SL_STATUS_ABORT;
   }
+
+  // send an door lock running flag to sensor
+  sensor_set_door_lock_operation(true);
 
   if (bEnableLock == true)
   {
@@ -168,12 +172,6 @@ sl_status_t motor_exec_lock(bool bEnableLock)
     sl_sleeptimer_delay_millisecond(5);
   }
 
-  // once DC motor soft-start is completed, allow DC motor to continue
-  // running with 100% duty cycle
-  // TODO[LAI]: optimize the time frame for reduce current consumption purpose
-  sc = sl_sleeptimer_start_timer_ms(&motor_driver_timer, MOTOR_CONTROL_INTERVAL_MS,
-                                    motor_driver_timer_cb, NULL, 0, 0);
-                            
   return sc;
 }
 
@@ -195,4 +193,16 @@ static void motor_driver_timer_cb(sl_sleeptimer_timer_handle_t *timer, void *dat
 
   sl_pwm_stop(&motor_pwm_instance);
   motor_pwm_init(false);
+}
+
+/***************************************************************************//**
+ *    terminate the DC motor
+ ******************************************************************************/
+void motor_operation_terminate(void)
+{
+  // once DC motor soft-start is completed, allow DC motor to continue
+  // running with 100% duty cycle
+  // TODO[LAI]: optimize the time frame for reduce current consumption purpose
+  sl_sleeptimer_start_timer_ms(&motor_driver_timer, MOTOR_CONTROL_INTERVAL_MS,
+                               motor_driver_timer_cb, NULL, 0, 0);
 }

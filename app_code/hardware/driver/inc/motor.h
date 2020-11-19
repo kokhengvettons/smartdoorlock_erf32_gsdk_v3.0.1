@@ -32,7 +32,7 @@ extern "C" {
 #define MOTOR_PWM_PERIPHERAL_NO             0
 #define MOTOR_PWM_OUTPUT_CHANNEL            0
 
-#define MOTOR_CONTROL_INTERVAL_MS           1000
+#define MOTOR_CONTROL_INTERVAL_MS           100
 
 /***************************************************************************//**
  *   Initialize GPIO module
@@ -68,6 +68,11 @@ sl_status_t motor_exec_lock(bool bEnableLock);
  *    read the motor fault value
  ******************************************************************************/
 bool motor_fault_indicator_read(void);
+
+/***************************************************************************//**
+ *    terminate the DC motor
+ ******************************************************************************/
+void motor_operation_terminate(void);
 
 #ifdef __cplusplus
 }

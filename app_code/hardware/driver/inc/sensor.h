@@ -88,6 +88,11 @@ void sensor_door_lock_position_handler(int interrupt_no);
  ******************************************************************************/
 sl_status_t sensor_read_request(uint8_t connection, uint16_t characteristic);
 
+/***************************************************************************//**
+ *   set door lock operation flag
+ ******************************************************************************/
+void sensor_set_door_lock_operation(bool bRunning);
+
 #ifdef __cplusplus
 }
 #endif
