@@ -168,6 +168,9 @@ sl_status_t motor_exec_lock(bool bEnableLock)
     sl_sleeptimer_delay_millisecond(5);
   }
 
+  // once DC motor soft-start is completed, allow DC motor to continue
+  // running with 100% duty cycle
+  // TODO[LAI]: optimize the time frame for reduce current consumption purpose
   sc = sl_sleeptimer_start_timer_ms(&motor_driver_timer, MOTOR_CONTROL_INTERVAL_MS,
                                     motor_driver_timer_cb, NULL, 0, 0);
                             

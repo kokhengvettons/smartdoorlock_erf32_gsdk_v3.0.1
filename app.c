@@ -316,6 +316,9 @@ void battery_level_indication_change_cb(
   }
   else if (gatt_disable == client_config)
   {
+    // whenever cell or motor battery level unsubscribe to characteristic
+    // notification, it will terminate all the battery level measurement. 
+    // This is because of using iadc scan through multi-channel together
     battery_terminate_IADC_Measure(ALL_BAT);
   }
 }

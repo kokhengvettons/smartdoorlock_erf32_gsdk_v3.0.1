@@ -155,7 +155,7 @@ void keypad_event_hander(int interrupt_no)
   }
   else if (eventTypeValue == CPT212B_SENSE_EVENT_PROXIMITY)
   {
-    // TODO: activate the keypad
+    // TODO[LAI]: activate the keypad
   }
 
   // clear the interrupt flags
